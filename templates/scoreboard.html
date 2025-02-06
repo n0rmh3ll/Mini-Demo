@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 class="mb-4">Scoreboard</h1>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Team</th>
+            <th>Score</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in scoreboard %}
+        <tr>
+            <td>{{ entry.team }}</td>
+            <td>{{ entry.score }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+

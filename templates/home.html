@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    :root {
+        --primary-color: #e74c3c;  /* Changed to red */
+        --primary-dark: #c0392b;   /* Darker red */
+        --text-primary: #2c3e50;
+        --text-secondary: #7f8c8d;
+    }
+
+    .home-container {
+        max-width: 1000px;
+        margin: 40px auto;
+        padding: 2rem;
+    }
+
+    .section-header {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+
+    .section-header h2 {
+        color: var(--primary-color);  /* Changed to red */
+        margin-bottom: 0.5rem;
+        font-size: 2rem;
+    }
+
+    .section-subheader {
+        color: #7f8c8d;
+        font-size: 1.1rem;
+        margin-top: 1rem;
+    }
+
+    .events-section {
+        margin-bottom: 3rem;
+    }
+
+    .event-card {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .event-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .event-info h3 {
+        color: var(--primary-color);  /* Changed to red */
+        margin-bottom: 0.5rem;
+    }
+
+    .event-date {
+        color: #7f8c8d;
+        font-size: 0.9rem;
+    }
+
+    .register-btn {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        color: white;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .register-btn:not(.registered) {
+        background: var(--primary-color);  /* Changed to red */
+    }
+
+    .register-btn.registered {
+        background: #2ecc71;
+    }
+
+    .register-btn:not(.registered):hover {
+        background: var(--primary-dark);  /* Changed to darker red */
+    }
+
+    .view-all-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        background: var(--primary-color);  /* Changed to red */
+        color: white;
+        text-decoration: none;
+        border-radius: 10px;
+        margin-top: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .view-all-btn:hover {
+        background: var(--primary-dark);  /* Changed to darker red */
+        transform: translateY(-2px);
+    }
+</style>
+
+<div class="home-container">
+    {% if session.get('user_id') == 'organizer' %}
+        <!-- Organizer View -->
+        <div class="events-section">
+            <div class="section-header">
+                <h2>Created Events</h2>
+                <div class="section-subheader">Events you have created</div>
+            </div>
+            {% if created_events %}
+                {% for event in created_events[:5] %}
+                <div class="event-card">
+                    <div class="event-info">
+                        <h3>{{ event.name }}</h3>
+                        <div class="event-date">{{ event.date.strftime('%B %d, %Y') }}</div>
+                    </div>
+                    <a href="{{ url_for('event_participants_list', event_id=event.id) }}" 
+                       class="register-btn">
+                        <i class="fas fa-users"></i> View Participants
+                    </a>
+                </div>
+                {% endfor %}
+                <a href="{{ url_for('event_list') }}" class="view-all-btn">
+                    <i class="fas fa-arrow-right"></i> View All Created Events
+                </a>
+            {% else %}
+                <p>You haven't created any events yet.</p>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <!-- Upcoming Events Section (visible to all) -->
+    <div class="events-section">
+        <div class="section-header">
+            <h2>Upcoming Events</h2>
+            <div class="section-subheader">
+                {% if session.get('user_id') == 'organizer' %}
+                Stay updated with upcoming events
+                {% else %}
+                Register for upcoming events and activities
+                {% endif %}
+            </div>
+        </div>
+        {% if upcoming_events %}
+            {% for event in upcoming_events[:5] %}
+            <div class="event-card">
+                <div class="event-info">
+                    <h3>{{ event.name }}</h3>
+                    <div class="event-date">{{ event.date.strftime('%B %d, %Y') }}</div>
+                </div>
+                {% if session.get('user_id') != 'organizer' %}
+                <a href="{{ url_for('register_activity', event_id=event.id) }}" 
+                   class="register-btn {% if event.id in registered_events %}registered{% endif %}">
+                    {% if event.id in registered_events %}
+                        <i class="fas fa-check"></i> Registered
+                    {% else %}
+                        <i class="fas fa-user-plus"></i> Register
+                    {% endif %}
+                </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+            <a href="{{ url_for('event_list') }}" class="view-all-btn">
+                <i class="fas fa-arrow-right"></i> View All Events
+            </a>
+        {% else %}
+            <p>No upcoming events available.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

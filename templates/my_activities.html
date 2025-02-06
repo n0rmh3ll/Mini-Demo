@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 class="mb-4">My Activities</h1>
+<ul class="list-group">
+    {% for activity in activities %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+        {{ activity.name }}
+        <span class="badge bg-primary rounded-pill">{{ activity.status }}</span>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}
+

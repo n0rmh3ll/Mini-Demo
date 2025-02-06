@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    :root {
+        --primary-color: #e74c3c;  /* Changed to red */
+        --primary-dark: #c0392b;   /* Darker red */
+        --text-primary: #2c3e50;
+        --text-secondary: #7f8c8d;
+    }
+
+    .dashboard-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: var(--white);
+        border-radius: 15px;
+        padding: 2rem;
+        box-shadow: var(--shadow);
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .stat-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .stat-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+    }
+
+    .events-icon {
+        background: var(--primary-color);  /* Changed to red */
+    }
+
+    .participants-icon {
+        background: var(--secondary-color);
+    }
+
+    .registered-icon {
+        background: #9b59b6;
+    }
+
+    .stat-title {
+        font-size: 1.1rem;
+        color: var(--primary-color);  /* Changed to red */
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .recent-events {
+        background: var(--white);
+        border-radius: 15px;
+        padding: 2rem;
+        box-shadow: var(--shadow);
+    }
+
+    .recent-events h2 {
+        margin-bottom: 1.5rem;
+        color: var(--primary-color);  /* Changed to red */
+    }
+
+    .event-list {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .event-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: var(--background);
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+
+    .event-item:hover {
+        transform: translateX(5px);
+        background: rgba(231, 76, 60, 0.1);  /* Light red background */
+    }
+
+    .event-item h3 {
+        color: var(--primary-color);  /* Changed to red */
+    }
+
+    .event-participants i {
+        color: var(--primary-color);  /* Changed to red */
+    }
+</style>
+
+<div class="dashboard-container">
+    <div class="stat-card">
+        <div class="stat-header">
+            <div class="stat-icon events-icon">
+                <i class="fas fa-calendar"></i>
+            </div>
+            <div>
+                <div class="stat-title">Total Events</div>
+                <div class="stat-value">{{ total_events }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-header">
+            <div class="stat-icon participants-icon">
+                <i class="fas fa-users"></i>
+            </div>
+            <div>
+                <div class="stat-title">Total Participants</div>
+                <div class="stat-value">{{ total_participants }}</div>
+            </div>
+        </div>
+    </div>
+
+    {% if session.get('user_id') != 'organizer' %}
+    <div class="stat-card">
+        <div class="stat-header">
+            <div class="stat-icon registered-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div>
+                <div class="stat-title">My Registrations</div>
+                <div class="stat-value">{{ user_registrations }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="recent-events">
+    <h2>Recent Events</h2>
+    <div class="event-list">
+        {% for event in recent_events %}
+        <div class="event-item">
+            <div>
+                <h3>{{ event.name }}</h3>
+                <div class="event-date">{{ event.date.strftime('%B %d, %Y') }}</div>
+            </div>
+            <div class="event-participants">
+                <i class="fas fa-users"></i> {{ event.participants|length }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %} 

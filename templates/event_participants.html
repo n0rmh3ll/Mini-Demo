@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .participants-container {
+        max-width: 1200px;
+        margin: 40px auto;
+        padding: 2rem;
+    }
+
+    .participants-header {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+
+    .participants-header h2 {
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+        font-size: 2rem;
+    }
+
+    .event-details {
+        color: #7f8c8d;
+        font-size: 1.1rem;
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        margin-top: 1rem;
+    }
+
+    .event-detail-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .event-detail-item i {
+        color: #3498db;
+    }
+
+    .participant-card {
+        background: white;
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+    }
+
+    .participant-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .info-item {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .info-label {
+        color: #7f8c8d;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .info-label i {
+        color: #3498db;
+        width: 20px;
+        text-align: center;
+    }
+
+    .info-value {
+        color: #2c3e50;
+        font-weight: 500;
+    }
+
+    .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        background: #3498db;
+        color: white;
+        text-decoration: none;
+        border-radius: 10px;
+        margin-bottom: 2rem;
+        transition: all 0.3s ease;
+        font-weight: 500;
+    }
+
+    .back-btn:hover {
+        background: #2980b9;
+        transform: translateX(-5px);
+    }
+
+    .no-participants {
+        text-align: center;
+        padding: 3rem;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .no-participants i {
+        font-size: 3rem;
+        color: #95a5a6;
+        margin-bottom: 1rem;
+    }
+
+    .no-participants p {
+        color: #7f8c8d;
+        font-size: 1.1rem;
+    }
+
+    @media (max-width: 768px) {
+        .participant-card {
+            flex-direction: column;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .info-item {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="participants-container">
+    <a href="{{ url_for('event_list') }}" class="back-btn">
+        <i class="fas fa-arrow-left"></i> Back to Events
+    </a>
+    
+    <div class="participants-header">
+        <h2>{{ event.name }}</h2>
+        <div class="event-details">
+            <div class="event-detail-item">
+                <i class="fas fa-calendar"></i>
+                <span>{{ event.date.strftime('%B %d, %Y') }}</span>
+            </div>
+            <div class="event-detail-item">
+                <i class="fas fa-users"></i>
+                <span>{{ participants|length }} Participants</span>
+            </div>
+        </div>
+    </div>
+
+    {% if participants %}
+        {% for participant in participants %}
+        <div class="participant-card">
+            <div class="info-item">
+                <div class="info-label">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="info-value">{{ participant.username }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">
+                    <i class="fas fa-id-card"></i>
+                </div>
+                <div class="info-value">{{ participant.college_id }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">
+                    <i class="fas fa-envelope"></i>
+                </div>
+                <div class="info-value">{{ participant.email }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <div class="info-value">{{ participant.major }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="no-participants">
+            <i class="fas fa-users-slash"></i>
+            <p>No participants have registered for this event yet.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %} 
