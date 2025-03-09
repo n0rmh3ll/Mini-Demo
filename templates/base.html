@@ -8,16 +8,32 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
-            --primary-color: #3498db;
-            --primary-dark: #2980b9;
-            --secondary-color: #2ecc71;
-            --secondary-dark: #27ae60;
-            --text-primary: #2c3e50;
-            --text-secondary: #7f8c8d;
-            --background: #f5f6fa;
-            --white: #ffffff;
-            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            --shadow-hover: 0 5px 20px rgba(0, 0, 0, 0.15);
+            /* Primary Colors */
+            --primary-color: #2563eb;          /* Main blue */
+            --primary-dark: #1e40af;           /* Darker blue for hover */
+            --primary-light: #60a5fa;          /* Lighter blue for highlights */
+            
+            /* Secondary Colors */
+            --secondary-color: #f8fafc;        /* Light background */
+            --secondary-dark: #e2e8f0;         /* Darker background */
+            
+            /* Status Colors */
+            --success-color: #22c55e;          /* Green */
+            --warning-color: #eab308;          /* Yellow */
+            --error-color: #ef4444;            /* Red */
+            --info-color: #3b82f6;             /* Info blue */
+            
+            /* Text Colors */
+            --text-primary: #1e293b;           /* Main text */
+            --text-secondary: #64748b;         /* Secondary text */
+            --text-light: #94a3b8;            /* Light text */
+            --text-white: #ffffff;             /* White text */
+            
+            /* Border and Shadow */
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
         }
 
         * {
@@ -27,16 +43,16 @@
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background: var(--background);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--secondary-color);
             color: var(--text-primary);
-            line-height: 1.6;
+            line-height: 1.5;
         }
 
         .navbar {
-            background: var(--white);
-            box-shadow: var(--shadow);
-            padding: 1rem 2rem;
+            background: var(--primary-color);
+            box-shadow: var(--shadow-md);
+            padding: 1rem;
             position: sticky;
             top: 0;
             z-index: 1000;
@@ -53,7 +69,7 @@
         .nav-brand {
             font-size: 1.5rem;
             font-weight: 700;
-            color: var(--primary-color);
+            color: var(--text-white);
             text-decoration: none;
             display: flex;
             align-items: center;
@@ -72,7 +88,7 @@
         }
 
         .nav-link {
-            color: var(--text-primary);
+            color: var(--text-white);
             text-decoration: none;
             font-weight: 500;
             transition: all 0.3s ease;
@@ -84,13 +100,13 @@
         }
 
         .nav-link:hover {
-            color: var(--primary-color);
-            background: rgba(52, 152, 219, 0.1);
+            color: var(--primary-dark);
+            background: rgba(37, 99, 235, 0.1);
         }
 
         .nav-link.active {
-            color: var(--primary-color);
-            background: rgba(52, 152, 219, 0.1);
+            color: var(--primary-dark);
+            background: rgba(37, 99, 235, 0.1);
         }
 
         .nav-link i {
@@ -99,8 +115,8 @@
 
         .logout-btn {
             padding: 0.5rem 1rem;
-            background: #e74c3c;
-            color: var(--white);
+            background: var(--primary-dark);
+            color: var(--text-white);
             border: none;
             border-radius: 8px;
             font-weight: 500;
@@ -113,9 +129,9 @@
         }
 
         .logout-btn:hover {
-            background: #c0392b;
+            background: var(--error-color);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.2);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
         }
 
         .user-menu {
@@ -151,21 +167,27 @@
         }
 
         .alert-info {
-            background-color: #cce5ff;
-            border: 1px solid #b8daff;
-            color: #004085;
+            background-color: var(--info-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
         }
 
         .alert-success {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
+            background-color: var(--success-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
         }
 
         .alert-error {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
+            background-color: var(--error-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .alert-warning {
+            background-color: var(--warning-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
         }
 
         .btn {
@@ -183,37 +205,37 @@
 
         .btn-primary {
             background: var(--primary-color);
-            color: var(--white);
+            color: var(--text-white);
         }
 
         .btn-primary:hover {
             background: var(--primary-dark);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
+            box-shadow: var(--shadow-md);
         }
 
         .btn-secondary {
             background: var(--secondary-color);
-            color: var(--white);
+            color: var(--text-primary);
         }
 
         .btn-secondary:hover {
             background: var(--secondary-dark);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.2);
+            box-shadow: var(--shadow-md);
         }
 
         .card {
-            background: var(--white);
+            background: var(--text-white);
             border-radius: 15px;
             padding: 2rem;
-            box-shadow: var(--shadow);
+            box-shadow: var(--shadow-sm);
             transition: all 0.3s ease;
         }
 
         .card:hover {
             transform: translateY(-5px);
-            box-shadow: var(--shadow-hover);
+            box-shadow: var(--shadow-md);
         }
 
         @media (max-width: 768px) {
@@ -222,10 +244,10 @@
                 top: 70px;
                 left: 0;
                 right: 0;
-                background: var(--white);
+                background: var(--primary-color);
                 padding: 1rem;
                 flex-direction: column;
-                box-shadow: var(--shadow);
+                box-shadow: var(--shadow-md);
                 display: none;
             }
 
@@ -238,7 +260,7 @@
                 background: none;
                 border: none;
                 font-size: 1.5rem;
-                color: var(--text-primary);
+                color: var(--text-white);
                 cursor: pointer;
             }
         }
@@ -270,6 +292,95 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Global Notification Styles */
+        .notification-popup {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #fff;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease-out;
+            max-width: 400px;
+        }
+
+        .notification-icon {
+            font-size: 1.2em;
+        }
+
+        .notification-content {
+            color: var(--text-primary);
+        }
+
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+
+        .notification-message {
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+
+        /* Success notification */
+        .notification-success {
+            border-left: 4px solid var(--success-color);
+        }
+        .notification-success .notification-icon {
+            color: var(--success-color);
+        }
+
+        /* Info notification */
+        .notification-info {
+            border-left: 4px solid var(--info-color);
+        }
+        .notification-info .notification-icon {
+            color: var(--info-color);
+        }
+
+        /* Warning notification */
+        .notification-warning {
+            border-left: 4px solid var(--warning-color);
+        }
+        .notification-warning .notification-icon {
+            color: var(--warning-color);
+        }
+
+        /* Error notification */
+        .notification-error {
+            border-left: 4px solid var(--error-color);
+        }
+        .notification-error .notification-icon {
+            color: var(--error-color);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -286,10 +397,18 @@
                 <a href="{{ url_for('event_list') }}" class="nav-link {% if request.endpoint == 'event_list' %}active{% endif %}">
                     <i class="fas fa-calendar"></i> Events
                 </a>
-                {% if session.get('user_id') != 'organizer' %}
-                <a href="{{ url_for('my_activities_list') }}" class="nav-link {% if request.endpoint == 'my_activities_list' %}active{% endif %}">
-                    <i class="fas fa-list"></i> My Activities
+                <a href="{{ url_for('event_calendar') }}" class="nav-link {% if request.endpoint == 'event_calendar' %}active{% endif %}">
+                    <i class="fas fa-calendar-alt"></i> Calendar
                 </a>
+                {% if session.get('user_id') and users[session.get('user_id')].get('is_admin') %}
+                    <a href="{{ url_for('pending_events_list') }}" class="nav-link {% if request.endpoint == 'pending_events_list' %}active{% endif %}">
+                        <i class="fas fa-clock"></i> Pending Events
+                    </a>
+                {% endif %}
+                {% if not users[session.get('user_id')].get('is_admin') and session.get('user_id') != 'organizer' %}
+                    <a href="{{ url_for('my_activities_list') }}" class="nav-link {% if request.endpoint == 'my_activities_list' %}active{% endif %}">
+                        <i class="fas fa-list"></i> My Activities
+                    </a>
                 {% endif %}
                 <a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}">
                     <i class="fas fa-user"></i> Profile
@@ -305,6 +424,37 @@
     <div class="container">
         {% block content %}{% endblock %}
     </div>
+
+    <!-- Global Notification System -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                {% set notification_type = category if category != 'message' else 'info' %}
+                {% set icon_class = {
+                    'success': 'fas fa-check-circle',
+                    'info': 'fas fa-info-circle',
+                    'warning': 'fas fa-exclamation-triangle',
+                    'error': 'fas fa-times-circle'
+                } %}
+                <div class="notification-popup notification-{{ notification_type }}" id="notification-{{ loop.index }}">
+                    <div class="notification-icon">
+                        <i class="{{ icon_class[notification_type] }}"></i>
+                    </div>
+                    <div class="notification-content">
+                        <div class="notification-title">
+                            {{ {
+                                'success': 'Success!',
+                                'info': 'Information',
+                                'warning': 'Warning',
+                                'error': 'Error'
+                            }[notification_type] }}
+                        </div>
+                        <div class="notification-message">{{ message }}</div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
     <div id="loading" class="loading" style="display: none;">
         <div class="loading-spinner"></div>
@@ -331,6 +481,40 @@
         // Hide loading animation when page loads
         window.addEventListener('load', function() {
             document.getElementById('loading').style.display = 'none';
+        });
+
+        // Enhanced notification system
+        document.addEventListener('DOMContentLoaded', function() {
+            const notifications = document.querySelectorAll('.notification-popup');
+            
+            notifications.forEach((notification, index) => {
+                // Stagger the notifications vertically
+                notification.style.top = `${20 + (index * 90)}px`;
+                
+                // Auto-dismiss after 5 seconds
+                setTimeout(() => {
+                    notification.style.animation = 'slideOut 0.3s ease-out forwards';
+                    setTimeout(() => {
+                        notification.remove();
+                        // Adjust positions of remaining notifications
+                        document.querySelectorAll('.notification-popup').forEach((remaining, i) => {
+                            remaining.style.top = `${20 + (i * 90)}px`;
+                        });
+                    }, 300);
+                }, 5000);
+
+                // Click to dismiss
+                notification.addEventListener('click', () => {
+                    notification.style.animation = 'slideOut 0.3s ease-out forwards';
+                    setTimeout(() => {
+                        notification.remove();
+                        // Adjust positions of remaining notifications
+                        document.querySelectorAll('.notification-popup').forEach((remaining, i) => {
+                            remaining.style.top = `${20 + (i * 90)}px`;
+                        });
+                    }, 300);
+                });
+            });
         });
     </script>
 </body>

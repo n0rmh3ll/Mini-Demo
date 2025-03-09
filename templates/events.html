@@ -2,6 +2,39 @@
 
 {% block content %}
 <style>
+    .event-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        position: relative;
+    }
+
+    .add-event-button {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: #3498db;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .add-event-button:hover {
+        background: #2980b9;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
+    }
+
+    .event-list {
+        margin-top: 60px;  /* Add space for the button */
+    }
+
     .events-container {
         max-width: 1000px;
         margin: 40px auto;
@@ -27,32 +60,6 @@
         color: #7f8c8d;
         font-size: 1.1rem;
         margin-top: 1rem;
-    }
-
-    .add-event-btn {
-        position: fixed;
-        bottom: 2rem;
-        right: 2rem;
-        padding: 1rem;
-        background: #3498db;
-        color: white;
-        border: none;
-        border-radius: 50%;
-        width: 60px;
-        height: 60px;
-        font-size: 1.5rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
-    }
-
-    .add-event-btn:hover {
-        background: #2980b9;
-        transform: translateY(-2px) scale(1.05);
-        box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
     }
 
     .event-card {
@@ -158,57 +165,151 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
     }
+
+    /* Popup notification styles */
+    .notification-popup {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #fff;
+        padding: 15px 25px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: slideIn 0.3s ease-out;
+    }
+
+    .notification-icon {
+        color: #f39c12;
+        font-size: 1.2em;
+    }
+
+    .notification-content {
+        color: #2c3e50;
+    }
+
+    .notification-title {
+        font-weight: 600;
+        margin-bottom: 3px;
+    }
+
+    .notification-message {
+        font-size: 0.9em;
+        color: #7f8c8d;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
 </style>
 
-<div class="events-container">
-    <div class="events-header">
-        <h2>{% if session.get('user_id') == 'organizer' %}Created Events{% else %}Upcoming Events{% endif %}</h2>
-        <div class="events-subheader">
-            {% if session.get('user_id') == 'organizer' %}
-            Manage and track your created events
+<div class="event-container">
+    {% if session.get('user_id') == 'organizer' or users[session.get('user_id')].get('is_admin') %}
+        <a href="{{ url_for('add_event') }}" class="add-event-button">
+            <i class="fas fa-plus"></i> Create Event
+        </a>
+    {% endif %}
+
+    <div class="event-list">
+        <div class="events-container">
+            <div class="events-header">
+                <h2>{% if session.get('user_id') == 'organizer' %}Created Events{% else %}Upcoming Events{% endif %}</h2>
+                <div class="events-subheader">
+                    {% if session.get('user_id') == 'organizer' %}
+                    Manage and track your created events
+                    {% else %}
+                    Register for upcoming events and activities
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if events %}
+                {% for event in events %}
+                <div class="event-card">
+                    <div class="event-info">
+                        <h3>{{ event.name }}</h3>
+                        <div class="event-date">{{ event.date.strftime('%B %d, %Y') }}</div>
+                    </div>
+                    {% if session.get('user_id') == 'organizer' %}
+                        <div class="organizer-controls">
+                            <a href="{{ url_for('event_participants_list', event_id=event.id) }}" 
+                               class="view-participants-btn">
+                                <i class="fas fa-users"></i> View Participants
+                            </a>
+                        </div>
+                    {% else %}
+                        <a href="{{ url_for('event_details', event_id=event.id) }}" 
+                           class="view-details-btn">
+                            <i class="fas fa-info-circle"></i> View Details
+                        </a>
+                    {% endif %}
+                </div>
+                {% endfor %}
             {% else %}
-            Register for upcoming events and activities
+                <div class="no-events">
+                    {% if session.get('user_id') == 'organizer' %}
+                        <p>You haven't created any events yet.</p>
+                    {% else %}
+                        <p>No upcoming events available at the moment.</p>
+                    {% endif %}
+                </div>
             {% endif %}
         </div>
     </div>
-
-    {% if events %}
-        {% for event in events %}
-        <div class="event-card">
-            <div class="event-info">
-                <h3>{{ event.name }}</h3>
-                <div class="event-date">{{ event.date.strftime('%B %d, %Y') }}</div>
-            </div>
-            {% if session.get('user_id') == 'organizer' %}
-                <div class="organizer-controls">
-                    <a href="{{ url_for('event_participants_list', event_id=event.id) }}" 
-                       class="view-participants-btn">
-                        <i class="fas fa-users"></i> View Participants
-                    </a>
-                </div>
-            {% else %}
-                <a href="{{ url_for('event_details', event_id=event.id) }}" 
-                   class="view-details-btn">
-                    <i class="fas fa-info-circle"></i> View Details
-                </a>
-            {% endif %}
-        </div>
-        {% endfor %}
-    {% else %}
-        <div class="no-events">
-            {% if session.get('user_id') == 'organizer' %}
-                <p>You haven't created any events yet.</p>
-            {% else %}
-                <p>No upcoming events available at the moment.</p>
-            {% endif %}
-        </div>
-    {% endif %}
-
-    {% if session.get('user_id') == 'organizer' %}
-    <a href="{{ url_for('add_event') }}" class="add-event-btn" title="Add Event">
-        <i class="fas fa-plus"></i>
-    </a>
-    {% endif %}
 </div>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        {% for message in messages %}
+            {% if 'Waiting for admin approval' in message %}
+                <div class="notification-popup" id="notification">
+                    <div class="notification-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="notification-content">
+                        <div class="notification-title">Event Pending Approval</div>
+                        <div class="notification-message">Your event has been submitted and is awaiting admin approval.</div>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<script>
+    // Auto-dismiss notification after 5 seconds
+    document.addEventListener('DOMContentLoaded', function() {
+        const notification = document.getElementById('notification');
+        if (notification) {
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out forwards';
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, 5000);
+        }
+    });
+</script>
 {% endblock %}
 

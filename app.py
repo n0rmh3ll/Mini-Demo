@@ -14,14 +14,27 @@ app.secret_key = 'your-secret-key-here'  # Replace with a real secret key in pro
 
 # Initialize empty data structures
 events = []
+pending_events = []  # New list for pending events
 scoreboard = []
 users = {
     'organizer': {
         'username': 'organizer',
         'password': generate_password_hash('organizer'),
         'is_organizer': True,
+        'is_admin': False,  # New field
         'activities': [],
         'email': '',
+        'major': '',
+        'year': '',
+        'college_id': ''
+    },
+    'admin': {
+        'username': 'admin',
+        'password': generate_password_hash('admin'),
+        'is_organizer': True,
+        'is_admin': True,  # New field
+        'activities': [],
+        'email': 'admin',
         'major': '',
         'year': '',
         'college_id': ''
@@ -65,6 +78,7 @@ def clear_data(signum=None, frame=None):
         'username': 'organizer',
         'password': generate_password_hash('organizer'),
         'is_organizer': True,
+        'is_admin': False,
         'activities': [],
         'email': '',
         'major': '',
@@ -86,12 +100,15 @@ signal.signal(signal.SIGTERM, clear_data)
 @app.route('/add_event', methods=['GET', 'POST'])
 @login_required
 def add_event():
-    if session.get('user_id') != 'organizer':
-        flash('Only organizers can add events')
+    user_id = session.get('user_id')
+    is_admin = users[user_id].get('is_admin', False)
+    
+    if not (user_id == 'organizer' or is_admin):
+        flash('Only organizers and admins can add events', 'error')
         return redirect(url_for('event_list'))
 
     if request.method == 'POST':
-        event_id = len(events) + 1
+        event_id = len(events) + len(pending_events) + 1
         name = request.form['name']
         date_str = request.form['date']
         try:
@@ -99,14 +116,24 @@ def add_event():
             new_event = {
                 "id": event_id,
                 "name": name,
-                "date": date
+                "date": date,
+                "created_by": user_id
             }
-            events.append(new_event)
-            event_participants[event_id] = []  # Initialize empty participants list
-            flash('Event added successfully!')
+            
+            # If admin is creating the event, add it directly to events list
+            if is_admin:
+                new_event["status"] = "approved"
+                events.append(new_event)
+                flash('Event created successfully!', 'success')
+            else:
+                # For organizer, add to pending events
+                new_event["status"] = "pending"
+                pending_events.append(new_event)
+                flash('Event added successfully! Waiting for admin approval.', 'info')
+            
             return redirect(url_for('event_list'))
         except ValueError:
-            flash('Invalid date format. Please use YYYY-MM-DD')
+            flash('Invalid date format. Please use YYYY-MM-DD', 'error')
             return redirect(url_for('add_event'))
     
     return render_template('add_event.html')
@@ -160,19 +187,17 @@ def event_participants_list(event_id):
 def event_details(event_id):
     event = next((e for e in events if e['id'] == event_id), None)
     if not event:
-        flash('Event not found')
-        return redirect(url_for('event_list'))
+        event = next((e for e in pending_events if e['id'] == event_id), None)
     
-    participants_count = len(event_participants.get(event_id, []))
-    is_registered = False
+    if not event:
+        flash('Event not found', 'error')
+        return redirect(url_for('home'))
     
-    if session.get('user_id') != 'organizer':
-        is_registered = session.get('user_id') in event_participants.get(event_id, [])
+    participants = event_participants.get(event_id, [])
     
-    return render_template('event_details.html',
+    return render_template('event_details.html', 
                          event=event,
-                         participants_count=participants_count,
-                         is_registered=is_registered)
+                         participants=participants)
 
 @app.route('/register_activity/<int:event_id>')
 @login_required
@@ -241,10 +266,18 @@ def login():
         
         if username in users and check_password_hash(users[username]['password'], password):
             session['user_id'] = username
-            flash('Logged in successfully!')
+            
+            # Check if user is new (needs to complete profile)
+            user_data = users[username]
+            if not user_data.get('is_admin') and not user_data.get('is_organizer'):
+                if not all([user_data.get('email'), user_data.get('college_id')]):
+                    flash('Please complete your profile before continuing', 'info')
+                    return redirect(url_for('setup_profile'))
+            
+            flash('Logged in successfully!', 'success')
             return redirect(url_for('home'))
         
-        flash('Invalid username or password')
+        flash('Invalid username or password', 'error')
         return redirect(url_for('login'))
     
     return render_template('login.html')
@@ -259,51 +292,107 @@ def logout():
 @app.route('/home')
 @login_required
 def home():
-    is_organizer = session.get('user_id') == 'organizer'
+    user_id = session.get('user_id')
+    is_admin = users[user_id].get('is_admin', False)
+    is_organizer = user_id == 'organizer'
+    
+    if is_admin:
+        # Calculate statistics for admin dashboard
+        total_events = len(events)
+        total_participants = sum(len(participants) for participants in event_participants.values())
+        pending_count = len(pending_events)
+        total_users = len([u for u in users.values() if not u.get('is_admin') and not u.get('is_organizer')])
+        
+        # Get recent events (last 5)
+        recent_events = sorted(events, key=lambda x: x['date'], reverse=True)[:5]
+        for event in recent_events:
+            event['participants'] = event_participants.get(event['id'], [])
+        
+        return render_template('admin_dashboard.html',
+                             total_events=total_events,
+                             total_participants=total_participants,
+                             pending_count=pending_count,
+                             total_users=total_users,
+                             recent_events=recent_events,
+                             pending_events=pending_events[:5])
+    
+    elif is_organizer:
+        # Calculate statistics for organizer dashboard
+        my_events = [event for event in events if event.get('created_by') == user_id]
+        my_pending = [event for event in pending_events if event.get('created_by') == user_id]
+        
+        # Calculate statistics
+        my_approved_events = len(my_events)
+        my_pending_events = len(my_pending)
+        total_participants = sum(len(event_participants.get(event['id'], [])) for event in my_events)
+        
+        # Get recent events created by this organizer
+        my_recent_events = sorted(my_events, key=lambda x: x['date'], reverse=True)[:5]
+        
+        return render_template('organizer_dashboard.html',
+                             my_approved_events=my_approved_events,
+                             my_pending_events=my_pending_events,
+                             total_participants=total_participants,
+                             my_recent_events=my_recent_events,
+                             my_pending_event_list=my_pending[:5],
+                             event_participants=event_participants)
+    
+    # User dashboard
     current_date = datetime.now()
     
-    # Get upcoming events
-    upcoming_events = [
+    # Get user's events
+    user_events = [
         event for event in events 
+        if event['id'] in event_participants and 
+        user_id in event_participants[event['id']]
+    ]
+    
+    # Split into past and upcoming events
+    past_events = [
+        event for event in user_events 
+        if event['date'] < current_date
+    ]
+    upcoming_events = [
+        event for event in user_events 
         if event['date'] >= current_date
     ]
+    
+    # Sort events
+    past_events.sort(key=lambda x: x['date'], reverse=True)
     upcoming_events.sort(key=lambda x: x['date'])
     
-    # Get created events for organizer
-    created_events = events if is_organizer else []
-    
-    registered_events = []
-    if not is_organizer:
-        username = session.get('user_id')
-        registered_events = [
-            event_id for event_id, participants in event_participants.items()
-            if username in participants
-        ]
-    
-    return render_template('home.html',
-                         upcoming_events=upcoming_events,
-                         created_events=created_events,
-                         registered_events=registered_events)
+    return render_template('user_dashboard.html',
+                         user=users[user_id],
+                         total_participated=len(past_events),
+                         upcoming_count=len(upcoming_events),
+                         achievements=len(past_events),  # Simple achievement count
+                         upcoming_events=upcoming_events[:5],
+                         past_events=past_events[:5])
 
 @app.route('/events')
 @login_required
 def event_list():
     is_organizer = session.get('user_id') == 'organizer'
+    is_admin = users[session.get('user_id')].get('is_admin', False)
     current_date = datetime.now()
     
-    if is_organizer:
-        # Show all events for organizer
+    if is_admin:
+        # Show all events for admin
         filtered_events = events
+    elif is_organizer:
+        # Show all approved events and their pending events for organizer
+        organizer_pending = [e for e in pending_events if e['created_by'] == session.get('user_id')]
+        filtered_events = events + organizer_pending
     else:
-        # Show only upcoming events for regular users
+        # Show only approved upcoming events for regular users
         filtered_events = [
             event for event in events 
-            if event['date'] >= current_date
+            if event['date'] >= current_date and event.get('status') == 'approved'
         ]
-        filtered_events.sort(key=lambda x: x['date'])  # Sort by date
+        filtered_events.sort(key=lambda x: x['date'])
 
     registered_events = []
-    if not is_organizer:
+    if not is_organizer and not is_admin:
         username = session.get('user_id')
         registered_events = [
             event_id for event_id, participants in event_participants.items()
@@ -336,16 +425,13 @@ def profile():
             'email': request.form.get('email'),
             'major': request.form.get('major'),
             'year': request.form.get('year'),
-            'college_id': request.form.get('college_id')  # Add college ID
+            'college_id': request.form.get('college_id')
         })
         flash('Profile updated successfully!')
         return redirect(url_for('profile'))
 
     user_data = users.get(username, {})
-    profile_image = None
-    if 'profile_image' in user_data:
-        profile_image = url_for('static', filename=f'uploads/{user_data["profile_image"]}')
-    return render_template('profile.html', user=user_data, profile_image=profile_image)
+    return render_template('profile.html', user=user_data)
 
 @app.route('/upload_profile_image', methods=['POST'])
 @login_required
@@ -403,6 +489,96 @@ def dashboard():
                          total_participants=total_participants,
                          user_registrations=user_registrations,
                          recent_events=recent_events)
+
+# New route for admin to manage pending events
+@app.route('/pending_events')
+@login_required
+def pending_events_list():
+    if not users[session.get('user_id')].get('is_admin'):
+        flash('Access denied')
+        return redirect(url_for('home'))
+    return render_template('pending_events.html', pending_events=pending_events)
+
+# New route for handling event approval/rejection
+@app.route('/approve_event/<int:event_id>/<action>')
+@login_required
+def approve_event(event_id, action):
+    if not users[session.get('user_id')].get('is_admin'):
+        flash('Access denied', 'error')
+        return redirect(url_for('home'))
+    
+    event = next((e for e in pending_events if e['id'] == event_id), None)
+    if not event:
+        flash('Event not found', 'error')
+        return redirect(url_for('pending_events_list'))
+    
+    if action == 'approve':
+        event['status'] = 'approved'
+        events.append(event)
+        pending_events.remove(event)
+        flash('Event approved successfully!', 'success')
+    elif action == 'reject':
+        event['status'] = 'rejected'
+        pending_events.remove(event)
+        flash('Event rejected', 'warning')
+    
+    return redirect(url_for('pending_events_list'))
+
+# New route for initial profile setup
+@app.route('/setup_profile', methods=['GET', 'POST'])
+@login_required
+def setup_profile():
+    username = session['user_id']
+    user_data = users.get(username, {})
+    
+    # If profile is already complete, redirect to home
+    if all([user_data.get('email'), user_data.get('college_id')]):
+        return redirect(url_for('home'))
+    
+    if request.method == 'POST':
+        # Update user profile data
+        users[username].update({
+            'email': request.form.get('email'),
+            'major': request.form.get('major'),
+            'year': request.form.get('year'),
+            'college_id': request.form.get('college_id')
+        })
+        flash('Profile completed successfully!')
+        return redirect(url_for('home'))
+    
+    return render_template('setup_profile.html', user=user_data)
+
+# Add this after app initialization
+@app.context_processor
+def utility_processor():
+    return {'users': users}
+
+@app.route('/calendar')
+@login_required
+def event_calendar():
+    # Get all events for the calendar
+    calendar_events = []
+    user_id = session.get('user_id')
+    is_admin = users[user_id].get('is_admin', False)
+    is_organizer = user_id == 'organizer'
+    
+    if is_admin:
+        # Admin sees all events
+        calendar_events = events + pending_events
+    elif is_organizer:
+        # Organizer sees their events and approved events
+        calendar_events = [
+            event for event in events + pending_events
+            if event.get('created_by') == user_id or event.get('status') == 'approved'
+        ]
+    else:
+        # Regular users see only approved events
+        calendar_events = [
+            event for event in events
+            if event.get('status') == 'approved'
+        ]
+    
+    return render_template('event_calendar.html', events=calendar_events)
 
 if __name__ == '__main__':
     try:
