@@ -337,7 +337,7 @@
     }
 
     function confirmRegistration() {
-        window.location.href = "{{ url_for('register_activity', event_id=event.id) }}";
+        window.location.href = "{{ url_for('register_event', event_id=event.id) }}";
     }
 
     // Close modal when clicking outside
