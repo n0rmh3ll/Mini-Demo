@@ -68,6 +68,50 @@
         padding: 30px 0;
         color: #7f8c8d;
     }
+    
+    .action-buttons {
+        display: flex;
+        gap: 15px;
+        margin-top: 20px;
+    }
+    
+    .download-button {
+        display: inline-block;
+        padding: 8px 16px;
+        background: #27ae60;
+        color: white;
+        text-decoration: none;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+    }
+    
+    .download-button:hover {
+        background: #219653;
+    }
+    
+    .attendance-checkbox {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+    
+    .attended {
+        background-color: #e8f7f0;
+    }
+    
+    .save-attendance {
+        background: #f39c12;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .save-attendance:hover {
+        background: #d35400;
+    }
 </style>
 
 <div class="participants-container">
@@ -77,36 +121,63 @@
     </div>
     
     {% if participants %}
-        <table class="participants-table">
-            <thead>
-                <tr>
-                    <th>Username</th>
-                    <th>Email</th>
-                    <th>College ID</th>
-                    <th>Major</th>
-                    <th>Year</th>
-                    <th>Registration Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for participant in participants %}
-                <tr>
-                    <td>{{ participant[0] }}</td>
-                    <td>{{ participant[1] }}</td>
-                    <td>{{ participant[2] }}</td>
-                    <td>{{ participant[3] }}</td>
-                    <td>{{ participant[4] }}</td>
-                    <td>{{ participant[5].strftime('%B %d, %Y %H:%M') if participant[5] else 'Not specified' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <form id="attendanceForm" action="{{ url_for('update_participation', event_id=event_id) }}" method="post">
+            <table class="participants-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>College ID</th>
+                        <th>Major</th>
+                        <th>Year</th>
+                        <th>Registration Date</th>
+                        <th>Attended</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for participant in participants %}
+                    <tr class="{{ 'attended' if participant.participated else '' }}">
+                        <td>{{ participant.username }}</td>
+                        <td>{{ participant.email }}</td>
+                        <td>{{ participant.college_id }}</td>
+                        <td>{{ participant.major }}</td>
+                        <td>{{ participant.year }}</td>
+                        <td>{{ participant.registration_date.strftime('%B %d, %Y %H:%M') if participant.registration_date else 'Not specified' }}</td>
+                        <td>
+                            <input type="checkbox" name="attended_{{ participant.username }}" class="attendance-checkbox" 
+                                {{ 'checked' if participant.participated else '' }}
+                                onchange="toggleRowHighlight(this)">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <div class="action-buttons">
+                <a href="{{ url_for('event_list') }}" class="back-button">Back to Events</a>
+                <button type="submit" class="save-attendance">Save Attendance</button>
+                <a href="{{ url_for('download_participants', event_id=event_id) }}" class="download-button">
+                    <i class="fas fa-download"></i> Download Participant Data
+                </a>
+            </div>
+        </form>
     {% else %}
         <div class="no-participants">
             <p>No participants have registered for this event yet.</p>
         </div>
+        
+        <a href="{{ url_for('event_list') }}" class="back-button">Back to Events</a>
     {% endif %}
-    
-    <a href="{{ url_for('events') }}" class="back-button">Back to Events</a>
 </div>
+
+<script>
+    function toggleRowHighlight(checkbox) {
+        const row = checkbox.closest('tr');
+        if (checkbox.checked) {
+            row.classList.add('attended');
+        } else {
+            row.classList.remove('attended');
+        }
+    }
+</script>
 {% endblock %}

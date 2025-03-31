@@ -282,6 +282,12 @@
     {% endif %}
 
     <div class="action-buttons">
+        {% if is_admin or is_organizer %}
+            <a href="{{ url_for('event_participants_list', event_id=event.id) }}" class="btn" style="background: #3498db; color: white;">
+                <i class="fas fa-users"></i> Manage Participants
+            </a>
+        {% endif %}
+        
         {% if event.status == 'approved' %}
             {% if not is_registered %}
                 {% if not event.user_limit or event.current_participants < event.user_limit %}

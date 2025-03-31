@@ -10,6 +10,9 @@ from PIL import Image
 import atexit
 import signal
 import sys
+import csv
+from io import StringIO
+from flask import Response
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Replace with a real secret key in production
@@ -91,6 +94,7 @@ def init_db():
                 event_id INTEGER REFERENCES events(id),
                 username VARCHAR(80) REFERENCES users(username),
                 registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                participated BOOLEAN DEFAULT FALSE,
                 PRIMARY KEY (event_id, username)
             )
         """)
@@ -176,6 +180,7 @@ def reset_database():
                 event_id INTEGER REFERENCES events(id),
                 username VARCHAR(80) REFERENCES users(username),
                 registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                participated BOOLEAN DEFAULT FALSE,
                 PRIMARY KEY (event_id, username)
             )
         """)
@@ -356,28 +361,161 @@ def add_score():
 @app.route('/event_participants/<int:event_id>')
 @login_required
 def event_participants_list(event_id):
-    if session.get('user_id') != 'organizer':
-        flash('Only organizers can view participants')
+    # Check if user is admin or organizer
+    if not session.get('is_admin') and not session.get('is_organizer'):
+        flash('Only admins and organizers can view participants')
         return redirect(url_for('event_list'))
     
-    event = next((e for e in events if e['id'] == event_id), None)
-    if not event:
-        flash('Event not found')
+    conn = get_db()
+    cur = conn.cursor()
+    
+    try:
+        # Get event details
+        cur.execute("SELECT name, date FROM events WHERE id = %s", (event_id,))
+        event_result = cur.fetchone()
+        
+        if not event_result:
+            flash('Event not found')
+            return redirect(url_for('event_list'))
+            
+        event_name, event_date = event_result
+        
+        # Get participants with their details and participation status
+        cur.execute("""
+            SELECT ep.username, u.email, u.college_id, u.major, u.year, ep.registration_date, ep.participated
+            FROM event_participants ep
+            JOIN users u ON ep.username = u.username
+            WHERE ep.event_id = %s
+            ORDER BY ep.username
+        """, (event_id,))
+        
+        participants_data = cur.fetchall()
+        participants = []
+        
+        for p in participants_data:
+            participants.append({
+                'username': p[0],
+                'email': p[1],
+                'college_id': p[2],
+                'major': p[3],
+                'year': p[4],
+                'registration_date': p[5],
+                'participated': p[6]
+            })
+        
+        return render_template('event_participants.html', 
+                              event_name=event_name,
+                              event_date=event_date,
+                              event_id=event_id,
+                              participants=participants)
+    
+    except Exception as e:
+        flash(f'Error retrieving participants: {str(e)}')
+        return redirect(url_for('event_list'))
+    finally:
+        cur.close()
+        release_db(conn)
+
+# Route to update participation status
+@app.route('/update_participation/<int:event_id>', methods=['POST'])
+@login_required
+def update_participation(event_id):
+    # Check if user is admin or organizer
+    if not session.get('is_admin') and not session.get('is_organizer'):
+        flash('Only admins and organizers can update participation')
         return redirect(url_for('event_list'))
     
-    participants = []
-    for username in event_participants.get(event_id, []):
-        user_data = users.get(username, {})
-        participants.append({
-            'username': username,
-            'email': user_data.get('email', ''),
-            'college_id': user_data.get('college_id', ''),
-            'major': user_data.get('major', '')
-        })
+    conn = get_db()
+    cur = conn.cursor()
     
-    return render_template('event_participants.html', 
-                         event=event, 
-                         participants=participants)
+    try:
+        # Get all participants for this event
+        cur.execute("SELECT username FROM event_participants WHERE event_id = %s", (event_id,))
+        participants = [row[0] for row in cur.fetchall()]
+        
+        # Update participation status based on form data
+        for username in participants:
+            checkbox_name = f"attended_{username}"
+            participated = checkbox_name in request.form
+            
+            cur.execute("""
+                UPDATE event_participants 
+                SET participated = %s 
+                WHERE event_id = %s AND username = %s
+            """, (participated, event_id, username))
+        
+        conn.commit()
+        flash('Participation status updated successfully')
+    
+    except Exception as e:
+        conn.rollback()
+        flash(f'Error updating participation: {str(e)}')
+    
+    finally:
+        cur.close()
+        release_db(conn)
+    
+    return redirect(url_for('event_participants_list', event_id=event_id))
+
+# Route to download participant data as CSV
+@app.route('/download_participants/<int:event_id>')
+@login_required
+def download_participants(event_id):
+    # Check if user is admin or organizer
+    if not session.get('is_admin') and not session.get('is_organizer'):
+        flash('Only admins and organizers can download participant data')
+        return redirect(url_for('event_list'))
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    try:
+        # Get event name for the filename
+        cur.execute("SELECT name FROM events WHERE id = %s", (event_id,))
+        event_name = cur.fetchone()[0]
+        
+        # Get all participants with their details and participation status
+        cur.execute("""
+            SELECT ep.username, u.email, u.college_id, u.major, u.year, ep.registration_date, ep.participated
+            FROM event_participants ep
+            JOIN users u ON ep.username = u.username
+            WHERE ep.event_id = %s
+            ORDER BY ep.username
+        """, (event_id,))
+        
+        participants_data = cur.fetchall()
+        
+        # Create CSV in memory
+        si = StringIO()
+        csv_writer = csv.writer(si)
+        
+        # Write header
+        csv_writer.writerow(['Username', 'Email', 'College ID', 'Major', 'Year', 'Registration Date', 'Participated'])
+        
+        # Write participant data
+        for p in participants_data:
+            registration_date = p[5].strftime('%Y-%m-%d %H:%M:%S') if p[5] else 'Not specified'
+            participated = 'Yes' if p[6] else 'No'
+            
+            csv_writer.writerow([p[0], p[1], p[2], p[3], p[4], registration_date, participated])
+        
+        # Create response with CSV data
+        output = si.getvalue()
+        filename = f"{event_name}_participants.csv"
+        
+        return Response(
+            output,
+            mimetype="text/csv",
+            headers={"Content-Disposition": f"attachment;filename={filename}"}
+        )
+    
+    except Exception as e:
+        flash(f'Error downloading participant data: {str(e)}')
+        return redirect(url_for('event_participants_list', event_id=event_id))
+    
+    finally:
+        cur.close()
+        release_db(conn)
 
 @app.route('/event/<int:event_id>')
 @login_required
@@ -613,6 +751,8 @@ def login():
             
             if user_data and check_password_hash(user_data[1], password):
                 session['user_id'] = username
+                session['is_admin'] = user_data[2]  # Store is_admin in session
+                session['is_organizer'] = user_data[3]  # Store is_organizer in session
                 
                 # Check if user needs to complete profile
                 if not (user_data[2] or user_data[3]):  # not admin or organizer
@@ -633,7 +773,9 @@ def login():
 @app.route('/logout')
 def logout():
     session.pop('user_id', None)
-    flash('Logged out successfully!')
+    session.pop('is_admin', None)
+    session.pop('is_organizer', None)
+    flash('You have been logged out', 'info')
     return redirect(url_for('login'))
 
 @app.route('/')
@@ -1760,6 +1902,7 @@ def reset_event_participants_table():
                 event_id INTEGER REFERENCES events(id),
                 username VARCHAR(80) REFERENCES users(username),
                 registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                participated BOOLEAN DEFAULT FALSE,
                 PRIMARY KEY (event_id, username)
             )
         """)
