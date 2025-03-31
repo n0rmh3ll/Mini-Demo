@@ -2,7 +2,7 @@
 {% block content %}
 <style>
     .form-container {
-        max-width: 400px;
+        max-width: 600px;
         margin: 80px auto;
         padding: 2.5rem;
         background: white;
@@ -26,13 +26,37 @@
         font-weight: 500;
     }
 
-    .form-group input {
+    .form-group input, .form-group textarea {
         width: 100%;
         padding: 0.75rem;
         border: 2px solid #e0e0e0;
         border-radius: 8px;
         transition: all 0.3s ease;
         font-size: 1rem;
+    }
+
+    .form-group textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .payment-section {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .payment-toggle {
+        margin-bottom: 1rem;
+    }
+
+    .payment-amount {
+        display: none;
+    }
+
+    .payment-amount.active {
+        display: block;
     }
 
     .submit-btn {
@@ -52,6 +76,16 @@
         background: #2980b9;
         transform: translateY(-2px);
         box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+    }
+
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+        width: auto;
     }
 </style>
 
@@ -73,11 +107,59 @@
             <label for="name">Event Name</label>
             <input type="text" id="name" name="name" required>
         </div>
+
+        <div class="form-group">
+            <label for="description">Event Description</label>
+            <textarea id="description" name="description" required></textarea>
+        </div>
+
         <div class="form-group">
             <label for="date">Event Date</label>
             <input type="date" id="date" name="date" required>
         </div>
+
+        <div class="form-group">
+            <label for="activity_points">Activity Points</label>
+            <input type="number" id="activity_points" name="activity_points" min="0" value="0" required>
+        </div>
+
+        <div class="form-group">
+            <label for="user_limit">Maximum Number of Participants (leave empty for no limit)</label>
+            <input type="number" id="user_limit" name="user_limit" min="1">
+        </div>
+
+        <div class="payment-section">
+            <div class="payment-toggle checkbox-group">
+                <input type="checkbox" id="is_paid" name="is_paid">
+                <label for="is_paid">This is a paid event</label>
+            </div>
+
+            <div class="payment-amount" id="payment_amount_section">
+                <div class="form-group">
+                    <label for="payment_amount">Payment Amount ($)</label>
+                    <input type="number" id="payment_amount" name="payment_amount" min="0" step="0.01" value="0">
+                </div>
+            </div>
+        </div>
+
         <button type="submit" class="submit-btn">Add Event</button>
     </form>
 </div>
-{% endblock %} 
+
+<script>
+    // Toggle payment amount section based on checkbox
+    document.getElementById('is_paid').addEventListener('change', function() {
+        const paymentSection = document.getElementById('payment_amount_section');
+        const paymentInput = document.getElementById('payment_amount');
+        
+        if (this.checked) {
+            paymentSection.classList.add('active');
+            paymentInput.required = true;
+        } else {
+            paymentSection.classList.remove('active');
+            paymentInput.required = false;
+            paymentInput.value = '0';
+        }
+    });
+</script>
+{% endblock %}

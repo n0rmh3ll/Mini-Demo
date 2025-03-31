@@ -53,18 +53,35 @@ def init_db():
             )
         """)
 
+        # Create scoreboard table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS scoreboard (
+                id SERIAL PRIMARY KEY,
+                team VARCHAR(200) NOT NULL,
+                score INTEGER NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Drop and recreate events table to ensure correct schema
         cur.execute("DROP TABLE IF EXISTS event_participants CASCADE")
         cur.execute("DROP TABLE IF EXISTS events CASCADE")
         
-        # Create events table with correct data types
+        # Create events table with correct schema
         cur.execute("""
             CREATE TABLE events (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(200) NOT NULL,
+                description TEXT,
                 date TIMESTAMP NOT NULL,
                 created_by VARCHAR(80) REFERENCES users(username),
-                status VARCHAR(20) DEFAULT 'pending'
+                status VARCHAR(20) DEFAULT 'pending',
+                activity_points INTEGER DEFAULT 0,
+                is_paid BOOLEAN DEFAULT FALSE,
+                payment_amount DECIMAL(10,2) DEFAULT 0,
+                user_limit INTEGER DEFAULT NULL,
+                current_participants INTEGER DEFAULT 0,
+                approved_by_admin BOOLEAN DEFAULT FALSE
             )
         """)
 
@@ -140,9 +157,16 @@ def reset_database():
             CREATE TABLE events (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(200) NOT NULL,
+                description TEXT,
                 date TIMESTAMP NOT NULL,
                 created_by VARCHAR(80) REFERENCES users(username),
-                status VARCHAR(20) DEFAULT 'pending'
+                status VARCHAR(20) DEFAULT 'pending',
+                activity_points INTEGER DEFAULT 0,
+                is_paid BOOLEAN DEFAULT FALSE,
+                payment_amount DECIMAL(10,2) DEFAULT 0,
+                user_limit INTEGER DEFAULT NULL,
+                current_participants INTEGER DEFAULT 0,
+                approved_by_admin BOOLEAN DEFAULT FALSE
             )
         """)
         
@@ -164,7 +188,7 @@ def reset_database():
         
         cur.execute("""
             INSERT INTO users (username, password_hash, is_admin, is_organizer, email, college_id)
-            VALUES ('organizer', %s, TRUE, FALSE, 'organizer@example.com', 'ORG001')
+            VALUES ('organizer', %s, FALSE, TRUE, 'organizer@example.com', 'ORG001')
         """, (generate_password_hash('organizer'),))
         
         conn.commit()
@@ -233,24 +257,8 @@ def login_required(f):
     return decorated_function
 
 def clear_data(signum=None, frame=None):
-    """Clear all data and exit program"""
-    print("\nClearing all data...")
-    events.clear()
-    users.clear()
-    event_participants.clear()
-    # Reinitialize organizer account
-    users['organizer'] = {
-        'username': 'organizer',
-        'password': generate_password_hash('organizer'),
-        'is_organizer': True,
-        'is_admin': False,
-        'activities': [],
-        'email': '',
-        'major': '',
-        'year': '',
-        'college_id': ''
-    }
-    print("Data cleared successfully!")
+    """Cleanup function for graceful shutdown"""
+    print("\nShutting down gracefully...")
     if signum is not None:  # If called by signal handler
         print("Exiting program...")
         sys.exit(0)
@@ -277,29 +285,44 @@ def add_event():
             flash('Only organizers and admins can add events', 'error')
             return redirect(url_for('event_list'))
 
+        # Debug user role
+        print(f"Add event - User: {user_id}, is_admin: {user_data[0]}, is_organizer: {user_data[1]}")
+
         if request.method == 'POST':
             name = request.form['name']
+            description = request.form['description']
             date_str = request.form['date']
+            activity_points = int(request.form['activity_points'])
+            is_paid = request.form.get('is_paid') == 'on'
+            payment_amount = float(request.form['payment_amount']) if is_paid else 0
+            user_limit = int(request.form['user_limit']) if request.form['user_limit'] else None
+
             try:
                 date = datetime.strptime(date_str, '%Y-%m-%d')
-                status = 'approved' if user_data[0] else 'pending'  # approved if admin
+                
+                # All events need admin approval, regardless of creator
+                status = 'pending'
+                
+                print(f"Creating event with status: {status}, is_admin: {user_data[0]}")
                 
                 cur.execute("""
-                    INSERT INTO events (name, date, created_by, status)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO events (name, description, date, created_by, status, activity_points, is_paid, payment_amount, user_limit)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
-                """, (name, date, user_id, status))
+                """, (name, description, date, user_id, status, activity_points, is_paid, payment_amount, user_limit))
                 
+                event_id = cur.fetchone()[0]
                 conn.commit()
-                flash('Event created successfully!' if status == 'approved' 
-                      else 'Event added successfully! Waiting for admin approval.', 'success')
+                
+                flash('Event added successfully! Waiting for admin approval.', 'success')
+                    
                 return redirect(url_for('event_list'))
             except ValueError:
                 flash('Invalid date format. Please use YYYY-MM-DD', 'error')
                 return redirect(url_for('add_event'))
     except Exception as e:
         conn.rollback()
-        flash(f'An error occurred: {str(e)}', 'error')
+        flash(f'An error occurred: {e}', 'error')
     finally:
         cur.close()
         release_db(conn)
@@ -364,35 +387,79 @@ def event_details(event_id):
     try:
         # Get event details
         cur.execute("""
-            SELECT e.id, e.name, e.date, e.status, e.created_by, u.email as organizer_email
+            SELECT e.id, e.name, e.description, e.date, e.status, e.created_by, 
+                   u.email as organizer_email, e.activity_points, e.is_paid, 
+                   e.payment_amount, e.user_limit, e.current_participants
             FROM events e
-            LEFT JOIN users u ON e.created_by = u.username
+            LEFT JOIN users u ON e.created_by::varchar = u.username
             WHERE e.id = %s
         """, (event_id,))
         event = cur.fetchone()
         
         if not event:
             flash('Event not found', 'error')
-            return redirect(url_for('home'))
+            return redirect(url_for('event_list'))
         
-        # Convert to dictionary for easier template access
+        # Get user role info
+        user_id = session.get('user_id')
+        cur.execute("""
+            SELECT is_admin, is_organizer 
+            FROM users 
+            WHERE username = %s
+        """, (user_id,))
+        user_data = cur.fetchone()
+        
+        # Make sure we have valid user data
+        if not user_data:
+            flash('User data not found', 'error')
+            return redirect(url_for('event_list'))
+            
+        is_admin = user_data[0]
+        is_organizer = user_data[1] or user_id == 'organizer'  # Ensure organizer username works too
+        
+        # Create event dictionary for template access
         event_dict = {
             'id': event[0],
             'name': event[1],
-            'date': event[2],
-            'status': event[3],
-            'created_by': event[4],
-            'organizer_email': event[5]
+            'description': event[2],
+            'date': event[3],
+            'status': event[4],
+            'created_by': event[5],
+            'organizer_email': event[6],
+            'activity_points': event[7],
+            'is_paid': event[8],
+            'payment_amount': event[9],
+            'user_limit': event[10],
+            'current_participants': event[11]
         }
         
+        # Check if user has access to this event
+        if not is_admin and not is_organizer and event_dict['status'] != 'approved':
+            flash('This event is awaiting approval and is not yet available', 'error')
+            return redirect(url_for('event_list'))
+        
+        # If organizer, verify they can only access their own pending events
+        if is_organizer and not is_admin and event_dict['status'] != 'approved' and event_dict['created_by'] != user_id:
+            flash('You do not have access to this pending event', 'error')
+            return redirect(url_for('event_list'))
+        
         # Get participants
+        participants = []
         cur.execute("""
-            SELECT u.username, u.email, u.college_id
+            SELECT ep.username, ep.registration_date, u.email
             FROM event_participants ep
             JOIN users u ON ep.username = u.username
             WHERE ep.event_id = %s
+            ORDER BY ep.registration_date
         """, (event_id,))
-        participants = cur.fetchall()
+        participants = [
+            {
+                'username': row[0],
+                'registration_date': row[1],
+                'email': row[2]
+            }
+            for row in cur.fetchall()
+        ]
         
         # Check if current user is registered
         cur.execute("""
@@ -404,7 +471,10 @@ def event_details(event_id):
         return render_template('event_details.html', 
                              event=event_dict,
                              participants=participants,
-                             is_registered=is_registered)
+                             is_registered=is_registered,
+                             is_admin=is_admin,
+                             is_organizer=is_organizer,
+                             current_user=user_id)
     finally:
         cur.close()
         release_db(conn)
@@ -412,67 +482,75 @@ def event_details(event_id):
 @app.route('/register_event/<int:event_id>')
 @login_required
 def register_event(event_id):
-    username = session.get('user_id')
+    user_id = session.get('user_id')
     conn = get_db()
     cur = conn.cursor()
-    
+
     try:
-        # Debug: Print current user trying to register
-        print(f"User '{username}' attempting to register for event {event_id}")
-        
-        # Check if user is organizer
-        cur.execute("SELECT is_organizer FROM users WHERE username = %s", (username,))
+        # Check if user is admin or organizer
+        cur.execute("""
+            SELECT is_admin, is_organizer
+            FROM users
+            WHERE username = %s
+        """, (user_id,))
         user_data = cur.fetchone()
-        if not user_data:
-            flash('User not found', 'error')
+
+        if user_data[0] or user_data[1]:  # Admin or organizer
+            flash('Admins and organizers cannot register for events', 'error')
             return redirect(url_for('event_list'))
-            
-        if user_data[0]:
-            flash('Organizers cannot register for events', 'error')
-            return redirect(url_for('event_details', event_id=event_id))
-        
+
         # Check if event exists and is approved
-        cur.execute("SELECT id FROM events WHERE id = %s AND status = 'approved'", (event_id,))
-        if not cur.fetchone():
+        cur.execute("""
+            SELECT user_limit, current_participants
+            FROM events
+            WHERE id = %s AND status = 'approved'
+        """, (event_id,))
+        event = cur.fetchone()
+
+        if not event:
             flash('Event not found or not approved', 'error')
             return redirect(url_for('event_list'))
-        
-        # Extra debug: Check if any constraints might be violated
-        print(f"Inserting: event_id={event_id}, username={username}")
-        
-        # Use a direct insertion approach with minimal columns
-        try:
-            cur.execute("""
-                INSERT INTO event_participants (event_id, username) 
-                VALUES (%s, %s)
-            """, (event_id, username))
-            
-            rows_affected = cur.rowcount
-            conn.commit()
-            
-            if rows_affected > 0:
-                flash('Successfully registered for the event!', 'success')
-            else:
-                flash('Registration failed', 'error')
-        except psycopg2.IntegrityError as e:
-            conn.rollback()
-            if "duplicate key" in str(e):
-                flash('Already registered for this event!', 'info')
-            else:
-                flash(f'Database error: {str(e)}', 'error')
-        
-        return redirect(url_for('event_details', event_id=event_id))
+
+        # Check participant limit
+        if event[0] and event[1] >= event[0]:
+            flash('Event is full', 'error')
+            return redirect(url_for('event_list'))
+
+        # Check if already registered
+        cur.execute("""
+            SELECT 1
+            FROM event_participants
+            WHERE event_id = %s AND username = %s
+        """, (event_id, user_id))
+
+        if cur.fetchone():
+            flash('You are already registered for this event', 'error')
+            return redirect(url_for('event_list'))
+
+        # Register user
+        cur.execute("""
+            INSERT INTO event_participants (event_id, username)
+            VALUES (%s, %s)
+        """, (event_id, user_id))
+
+        # Update participant count
+        cur.execute("""
+            UPDATE events
+            SET current_participants = current_participants + 1
+            WHERE id = %s
+        """, (event_id,))
+
+        conn.commit()
+        flash('Successfully registered for the event!', 'success')
+
     except Exception as e:
         conn.rollback()
-        # More detailed error logging
-        import traceback
-        print(f"Error in register_event: {str(e)}")
-        print(traceback.format_exc())
-        flash(f'An error occurred: {str(e)}', 'error')
-        return redirect(url_for('event_details', event_id=event_id))
+        flash(f'An error occurred: {e}', 'error')
+        print(f"Error: {e}")
     finally:
-        cur.close()
         release_db(conn)
+
+    return redirect(url_for('event_list'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -489,11 +567,21 @@ def register():
                 flash('Username already exists')
                 return redirect(url_for('register'))
             
-            # Insert new user - using the correct column names from your schema
+            # Insert new user with default profile values
             cur.execute("""
-                INSERT INTO users (username, password_hash)
-                VALUES (%s, %s)
-            """, (username, generate_password_hash(password)))
+                INSERT INTO users (
+                    username, password_hash, email, college_id, 
+                    major, year, is_admin, is_organizer
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, FALSE, FALSE)
+            """, (
+                username, 
+                generate_password_hash(password),
+                '',  # empty email
+                '',  # empty college_id
+                '',  # empty major
+                ''   # empty year
+            ))
             
             conn.commit()
             flash('Registration successful! Please login.')
@@ -626,7 +714,7 @@ def home():
             cur.execute("""
                 SELECT e.id, e.name, e.date, e.status, e.created_by, u.username as organizer_name
                 FROM events e
-                JOIN users u ON e.created_by = u.username
+                JOIN users u ON e.created_by::varchar = u.username
                 WHERE e.status = 'pending'
                 ORDER BY e.date ASC
                 LIMIT 5
@@ -754,75 +842,63 @@ def event_list():
         is_admin = user_data[0] if user_data else False
         is_organizer = user_data[1] if user_data else False
         
-        if is_admin:
-            # Show all events for admin with proper date handling
-            cur.execute("""
-                SELECT e.id, 
-                       e.name, 
-                       e.date::timestamp, 
-                       e.status, 
-                       e.created_by,
-                       u.email as organizer_email
+        # Debug output
+        print(f"User: {user_id}, is_admin: {is_admin}, is_organizer: {is_organizer}")
+        
+        # Get events based on user role
+        if is_admin:  # Admin
+            query = """
+                SELECT e.id, e.name, e.description, e.date::timestamp, e.status, e.created_by,
+                       e.activity_points, e.is_paid, e.payment_amount, e.user_limit, e.current_participants
                 FROM events e
-                LEFT JOIN users u ON e.created_by = u.username
                 ORDER BY e.date
-            """)
-            # Convert to list of dictionaries with datetime objects
-            events = [
-                {
-                    'id': row[0],
-                    'name': row[1],
-                    'date': row[2],
-                    'status': row[3],
-                    'created_by': row[4],
-                    'organizer_email': row[5]
-                }
-                for row in cur.fetchall()
-            ]
-        elif is_organizer:
-            # Show approved events and organizer's pending events
-            cur.execute("""
-                SELECT e.id, 
-                       e.name, 
-                       e.date::timestamp, 
-                       e.status, 
-                       e.created_by
+            """
+            cur.execute(query)
+            print("Admin: showing all events")
+        elif is_organizer:  # Organizer
+            query = """
+                SELECT e.id, e.name, e.description, e.date::timestamp, e.status, e.created_by,
+                       e.activity_points, e.is_paid, e.payment_amount, e.user_limit, e.current_participants
                 FROM events e
-                WHERE e.status = 'approved' OR e.created_by = %s
+                WHERE e.created_by = %s OR e.status = 'approved'
                 ORDER BY e.date
-            """, (user_id,))
-            events = [
-                {
-                    'id': row[0],
-                    'name': row[1],
-                    'date': row[2],
-                    'status': row[3],
-                    'created_by': row[4]
-                }
-                for row in cur.fetchall()
-            ]
-        else:
-            # Show only approved upcoming events
-            cur.execute("""
-                SELECT e.id, 
-                       e.name, 
-                       e.date::timestamp, 
-                       e.status, 
-                       e.created_by
+            """
+            cur.execute(query, (user_id,))
+            print(f"Organizer: showing own events and approved events, SQL: {query}")
+        else:  # Regular user - only show approved events
+            query = """
+                SELECT e.id, e.name, e.description, e.date::timestamp, e.status, e.created_by,
+                       e.activity_points, e.is_paid, e.payment_amount, e.user_limit, e.current_participants
                 FROM events e
-                WHERE e.status = 'approved' AND e.date >= CURRENT_DATE
+                WHERE e.status = 'approved'
                 ORDER BY e.date
-            """)
-            events = [
-                {
-                    'id': row[0],
-                    'name': row[1],
-                    'date': row[2],
-                    'status': row[3],
-                    'created_by': row[4]
-                }
-                for row in cur.fetchall()
-            ]
+            """
+            cur.execute(query)
+            print(f"Regular user: showing only approved events, SQL: {query}")
+            
+        # Get all events for debugging
+        events_result = cur.fetchall()
+        print(f"Found {len(events_result)} events in total")
+        for idx, row in enumerate(events_result):
+            print(f"Event {idx+1}: ID={row[0]}, Name={row[1]}, Status={row[4]}, Created by={row[5]}")
+        
+        # Convert to list of dictionaries with datetime objects
+        events = [
+            {
+                'id': row[0],
+                'name': row[1],
+                'description': row[2],
+                'date': row[3],
+                'status': row[4],
+                'created_by': row[5],
+                'activity_points': row[6],
+                'is_paid': row[7],
+                'payment_amount': row[8],
+                'user_limit': row[9],
+                'current_participants': row[10]
+            }
+            for row in events_result
+        ]
         
         # Get registered events for user
         if not is_organizer and not is_admin:
@@ -884,6 +960,12 @@ def my_activities_list():
 @login_required
 def profile():
     username = session['user_id']
+    
+    # Check if user is admin or organizer
+    if username == 'admin' or username == 'organizer':
+        flash('Profile access is restricted to regular users only.', 'error')
+        return redirect(url_for('home'))
+    
     conn = get_db()
     cur = conn.cursor()
     
@@ -913,7 +995,27 @@ def profile():
         """, (username,))
         user_data = cur.fetchone()
         
-        return render_template('profile.html', user=user_data)
+        # Convert tuple to dictionary for template
+        if user_data:
+            user_dict = {
+                'username': user_data[0],
+                'email': user_data[1],
+                'major': user_data[2],
+                'year': user_data[3],
+                'college_id': user_data[4],
+                'profile_image': user_data[5]
+            }
+        else:
+            user_dict = {
+                'username': username,
+                'email': '',
+                'major': '',
+                'year': '',
+                'college_id': '',
+                'profile_image': None
+            }
+        
+        return render_template('profile.html', user=user_dict)
     finally:
         cur.close()
         release_db(conn)
@@ -921,6 +1023,12 @@ def profile():
 @app.route('/upload_profile_image', methods=['POST'])
 @login_required
 def upload_profile_image():
+    username = session['user_id']
+    
+    # Check if user is admin or organizer
+    if username == 'admin' or username == 'organizer':
+        return jsonify({'success': False, 'error': 'Profile access is restricted to regular users only.'})
+    
     if 'image' not in request.files:
         return jsonify({'success': False, 'error': 'No file uploaded'})
     
@@ -1002,13 +1110,35 @@ def pending_events_list():
         
         # Get pending events - fix the JOIN condition with type cast
         cur.execute("""
-            SELECT e.id, e.name, e.date, e.created_by, u.email 
+            SELECT e.id, e.name, e.description, e.date, e.created_by, u.email,
+                   e.activity_points, e.is_paid, e.payment_amount, e.user_limit, e.status
             FROM events e 
             LEFT JOIN users u ON e.created_by::varchar = u.username
             WHERE e.status = 'pending'
             ORDER BY e.date
         """)
-        pending_events = cur.fetchall()
+        
+        # Debug pending events
+        rows = cur.fetchall()
+        print(f"Found {len(rows)} pending events")
+        for row in rows:
+            print(f"Pending event: ID={row[0]}, Name={row[1]}, Status={row[10]}, Created by={row[4]}")
+        
+        pending_events = []
+        for row in rows:
+            pending_events.append({
+                'id': row[0],
+                'name': row[1],
+                'description': row[2],
+                'date': row[3],
+                'created_by': row[4],
+                'organizer_email': row[5],
+                'activity_points': row[6],
+                'is_paid': row[7],
+                'payment_amount': row[8],
+                'user_limit': row[9],
+                'status': row[10]
+            })
         
         return render_template('pending_events.html', pending_events=pending_events)
     finally:
@@ -1029,11 +1159,25 @@ def approve_event(event_id, action):
             return redirect(url_for('home'))
         
         if action == 'approve':
+            # Debug approval action
+            print(f"Approving event {event_id}")
+            
+            # Get event details before approval
+            cur.execute("SELECT id, name, status, created_by FROM events WHERE id = %s", (event_id,))
+            event_before = cur.fetchone()
+            print(f"Event before approval: ID={event_before[0]}, Name={event_before[1]}, Status={event_before[2]}, Created by={event_before[3]}")
+            
             cur.execute("""
                 UPDATE events 
-                SET status = 'approved' 
+                SET status = 'approved'
                 WHERE id = %s
             """, (event_id,))
+            
+            # Verify the update
+            cur.execute("SELECT id, name, status, created_by FROM events WHERE id = %s", (event_id,))
+            event_after = cur.fetchone()
+            print(f"Event after approval: ID={event_after[0]}, Name={event_after[1]}, Status={event_after[2]}, Created by={event_after[3]}")
+            
             flash('Event approved successfully!', 'success')
         elif action == 'reject':
             cur.execute("""
@@ -1154,28 +1298,116 @@ def utility_processor():
 @login_required
 def event_calendar():
     # Get all events for the calendar
-    calendar_events = []
     user_id = session.get('user_id')
-    is_admin = users[user_id].get('is_admin', False)
-    is_organizer = user_id == 'organizer'
+    conn = get_db()
+    cur = conn.cursor()
     
-    if is_admin:
-        # Admin sees all events
-        calendar_events = events + pending_events
-    elif is_organizer:
-        # Organizer sees their events and approved events
-        calendar_events = [
-            event for event in events + pending_events
-            if event.get('created_by') == user_id or event.get('status') == 'approved'
-        ]
-    else:
-        # Regular users see only approved events
-        calendar_events = [
-            event for event in events
-            if event.get('status') == 'approved'
-        ]
-    
-    return render_template('event_calendar.html', events=calendar_events)
+    try:
+        # Get user role information
+        cur.execute("""
+            SELECT is_admin, username = 'organizer' as is_organizer
+            FROM users
+            WHERE username = %s
+        """, (user_id,))
+        user_data = cur.fetchone()
+        
+        if not user_data:
+            flash('User not found', 'error')
+            return redirect(url_for('home'))
+            
+        is_admin = user_data[0]
+        is_organizer = user_data[1]
+        
+        # Get events based on user role
+        if is_admin:
+            # Admin sees all events
+            cur.execute("""
+                SELECT id, name, date, status, created_by
+                FROM events
+                ORDER BY date
+            """)
+        elif is_organizer:
+            # Organizer sees their events and approved events
+            cur.execute("""
+                SELECT id, name, date, status, created_by
+                FROM events
+                WHERE created_by = %s OR status = 'approved'
+                ORDER BY date
+            """, (user_id,))
+        else:
+            # Regular users see only approved events
+            cur.execute("""
+                SELECT id, name, date, status, created_by
+                FROM events
+                WHERE status = 'approved'
+                ORDER BY date
+            """)
+            
+        events = cur.fetchall()
+        
+        # Convert events to dictionary format for the template
+        calendar_events = [{
+            'id': event[0],
+            'name': event[1],
+            'date': event[2],
+            'status': event[3],
+            'created_by': event[4]
+        } for event in events]
+        
+        return render_template('event_calendar.html', events=calendar_events)
+    finally:
+        cur.close()
+        release_db(conn)
+
+# Route for deleting events (admin only)
+@app.route('/delete_event/<int:event_id>', methods=['GET', 'POST'])
+@login_required
+def delete_event(event_id):
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        # Check if user is admin
+        user_id = session.get('user_id')
+        cur.execute("""
+            SELECT is_admin
+            FROM users
+            WHERE username = %s
+        """, (user_id,))
+        is_admin = cur.fetchone()[0]
+        
+        if not is_admin:
+            flash('Access denied. Only administrators can delete events.', 'error')
+            return redirect(url_for('event_list'))
+
+        # Check if event exists
+        cur.execute("SELECT id, name FROM events WHERE id = %s", (event_id,))
+        event = cur.fetchone()
+        
+        if not event:
+            flash('Event not found', 'error')
+            return redirect(url_for('event_list'))
+
+        if request.method == 'POST':
+            # First delete all participants for this event
+            cur.execute("DELETE FROM event_participants WHERE event_id = %s", (event_id,))
+            
+            # Then delete the event
+            cur.execute("DELETE FROM events WHERE id = %s", (event_id,))
+            
+            conn.commit()
+            flash(f'Event "{event[1]}" has been deleted successfully', 'success')
+            return redirect(url_for('event_list'))
+        
+        # GET request shows confirmation page
+        return render_template('confirm_delete_event.html', event_id=event_id, event_name=event[1])
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'An error occurred: {str(e)}', 'error')
+        return redirect(url_for('event_list'))
+    finally:
+        cur.close()
+        release_db(conn)
 
 # Clean up database connections when the application exits
 @atexit.register
@@ -1275,39 +1507,27 @@ def check_event_participants_table():
 
 # Now, let's reset the admin and organizer accounts with fresh passwords
 def reset_admin_organizer():
+    """Reset admin and organizer accounts"""
     conn = get_db()
     cur = conn.cursor()
     try:
-        # Reset admin password
+        # Generate default passwords
         admin_password = generate_password_hash('admin')
+        organizer_password = generate_password_hash('organizer')
+        
+        # Delete existing admin and organizer accounts to avoid role conflicts
+        cur.execute("DELETE FROM users WHERE username IN ('admin', 'organizer')")
+        
+        # Create fresh accounts with correct role assignments
         cur.execute("""
-            UPDATE users 
-            SET password_hash = %s, is_admin = TRUE
-            WHERE username = 'admin'
+            INSERT INTO users (username, password_hash, is_admin, is_organizer, email, college_id)
+            VALUES ('admin', %s, TRUE, FALSE, 'admin@example.com', 'ADMIN001')
         """, (admin_password,))
         
-        # Reset organizer password
-        organizer_password = generate_password_hash('organizer')
         cur.execute("""
-            UPDATE users 
-            SET password_hash = %s, is_organizer = TRUE
-            WHERE username = 'organizer'
+            INSERT INTO users (username, password_hash, is_admin, is_organizer, email, college_id)
+            VALUES ('organizer', %s, FALSE, TRUE, 'organizer@example.com', 'ORG001')
         """, (organizer_password,))
-        
-        # If they don't exist, create them
-        cur.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
-        if cur.fetchone()[0] == 0:
-            cur.execute("""
-                INSERT INTO users (username, password_hash, is_admin, is_organizer, email, college_id)
-                VALUES ('admin', %s, TRUE, FALSE, 'admin@example.com', 'ADMIN001')
-            """, (admin_password,))
-        
-        cur.execute("SELECT COUNT(*) FROM users WHERE username = 'organizer'")
-        if cur.fetchone()[0] == 0:
-            cur.execute("""
-                INSERT INTO users (username, password_hash, is_organizer, is_admin, email, college_id)
-                VALUES ('organizer', %s, TRUE, FALSE, 'organizer@example.com', 'ORG001')
-            """, (organizer_password,))
         
         conn.commit()
         print("Admin and organizer accounts reset successfully")
@@ -1415,18 +1635,28 @@ def create_event():
         
         if request.method == 'POST':
             name = request.form['name']
+            description = request.form['description']
             date = request.form['date']
             created_by = session.get('user_id')
+            activity_points = int(request.form['activity_points'])
+            is_paid = request.form.get('is_paid') == 'on'
+            payment_amount = float(request.form['payment_amount']) if is_paid else 0
+            user_limit = int(request.form['user_limit']) if request.form['user_limit'] else None
             
             # Insert the event with created_by as varchar
             cur.execute("""
-                INSERT INTO events (name, date, created_by, status)
-                VALUES (%s, %s::timestamp, %s, %s)
+                INSERT INTO events (name, description, date, created_by, status, activity_points, is_paid, payment_amount, user_limit)
+                VALUES (%s, %s, %s::timestamp, %s, %s, %s, %s, %s, %s)
             """, (
                 name, 
+                description,
                 date, 
                 created_by,
-                'approved' if user_data[0] else 'pending'  # Auto-approve if admin
+                'approved' if user_data[0] else 'pending',  # Auto-approve if admin
+                activity_points,
+                is_paid,
+                payment_amount,
+                user_limit
             ))
             
             conn.commit()
@@ -1436,19 +1666,39 @@ def create_event():
         return render_template('create_event.html')
     except Exception as e:
         conn.rollback()
-        flash(f'An error occurred: {str(e)}')
+        flash(f'An error occurred: {str(e)}', 'error')
         return redirect(url_for('event_list'))
+    finally:
+        cur.close()
+        release_db(conn)
+
+def ensure_scoreboard_exists():
+    """Ensure the scoreboard table exists without resetting it"""
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        # Create scoreboard table if it doesn't exist
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS scoreboard (
+                id SERIAL PRIMARY KEY,
+                team VARCHAR(200) NOT NULL,
+                score INTEGER NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
     finally:
         cur.close()
         release_db(conn)
 
 # Call this function when starting the app
 if __name__ == '__main__':
-    reset_database()  # Reset the entire database
     try:
-        app.run(debug=True)
-    except KeyboardInterrupt:
-        print("\nKeyboard interrupt received")
+        ensure_scoreboard_exists()  # Ensure scoreboard table exists
+        fix_events_table()  # Fix event status and approval
+        app.run(host='0.0.0.0', port=5000, debug=True)
+    except Exception as e:
+        print(f"Error starting application: {e}")
 
 def check_table_schema(table_name):
     """Check and print the schema of a table"""
@@ -1523,3 +1773,243 @@ def reset_event_participants_table():
         cur.close()
         release_db(conn)
 
+@app.context_processor
+def inject_user_info():
+    """Make user info available to all templates"""
+    user_id = session.get('user_id')
+    if not user_id:
+        return {'is_logged_in': False, 'is_admin': False, 'is_organizer': False}
+    
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT is_admin, is_organizer
+            FROM users
+            WHERE username = %s
+        """, (user_id,))
+        user_data = cur.fetchone()
+        
+        if not user_data:
+            return {'is_logged_in': True, 'is_admin': False, 'is_organizer': False}
+        
+        return {
+            'is_logged_in': True,
+            'is_admin': user_data[0],
+            'is_organizer': user_data[1] or user_id == 'organizer',
+            'current_user': user_id
+        }
+    finally:
+        cur.close()
+        release_db(conn)
+
+# Check and fix the events table structure
+def fix_events_table():
+    """Ensure that the events table has the correct schema"""
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        # Check if the events table exists and has the status column
+        cur.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.columns 
+                WHERE table_name = 'events' AND column_name = 'status'
+            )
+        """)
+        has_status_column = cur.fetchone()[0]
+        
+        if not has_status_column:
+            # Alter table to add the status column
+            cur.execute("""
+                ALTER TABLE events 
+                ADD COLUMN status VARCHAR(20) DEFAULT 'pending'
+            """)
+            conn.commit()
+            print("Added status column to events table")
+        
+        # Update any NULL status values to 'pending'
+        cur.execute("""
+            UPDATE events
+            SET status = 'pending'
+            WHERE status IS NULL
+        """)
+        conn.commit()
+        
+        # Make sure all admin-created events are approved
+        cur.execute("""
+            UPDATE events e
+            SET status = 'approved'
+            FROM users u
+            WHERE e.created_by = u.username AND u.is_admin = TRUE AND e.status = 'pending'
+        """)
+        conn.commit()
+        
+        print("Fixed events table schema and data")
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error fixing events table: {e}")
+    finally:
+        cur.close()
+        release_db(conn)
+
+def reset_event_status():
+    """Ensure all events have the correct status based on creator role"""
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        print("Resetting event status based on creator roles...")
+        
+        # First, get all events and their creator roles
+        cur.execute("""
+            SELECT e.id, e.name, e.status, e.created_by, u.is_admin, u.is_organizer
+            FROM events e
+            LEFT JOIN users u ON e.created_by::varchar = u.username
+        """)
+        
+        events = cur.fetchall()
+        print(f"Found {len(events)} events to check")
+        
+        for event in events:
+            event_id = event[0]
+            event_name = event[1]
+            current_status = event[2]
+            creator = event[3]
+            is_admin_creator = event[4]
+            is_organizer_creator = event[5]
+            
+            # Determine correct status
+            correct_status = 'approved' if is_admin_creator else 'pending'
+            
+            if current_status != correct_status:
+                print(f"Fixing event {event_id} '{event_name}' - Created by {creator} (admin: {is_admin_creator}, organizer: {is_organizer_creator})")
+                print(f"  Current status: {current_status}, Correct status: {correct_status}")
+                
+                # Update the status
+                cur.execute("""
+                    UPDATE events
+                    SET status = %s
+                    WHERE id = %s
+                """, (correct_status, event_id))
+                
+                conn.commit()
+                print(f"  Status updated to {correct_status}")
+            else:
+                print(f"Event {event_id} '{event_name}' has correct status: {current_status}")
+        
+        print("Event status reset completed")
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error resetting event status: {e}")
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.route('/admin/reset_event_status')
+@login_required
+def admin_reset_event_status():
+    """Admin route to reset event status based on creator roles"""
+    # Check if user is admin
+    user_id = session.get('user_id')
+    conn = get_db()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("SELECT is_admin FROM users WHERE username = %s", (user_id,))
+        is_admin = cur.fetchone()[0]
+        
+        if not is_admin:
+            flash('Access denied. Only administrators can access this page.', 'error')
+            return redirect(url_for('event_list'))
+        
+        # Get all events
+        cur.execute("""
+            SELECT e.id, e.name, e.status, e.created_by
+            FROM events e
+        """)
+        
+        events = cur.fetchall()
+        pending_count = 0
+        
+        for event in events:
+            event_id = event[0]
+            event_name = event[1]
+            current_status = event[2]
+            
+            # All events should be pending until admin approves them
+            if current_status == 'approved':
+                # Update the status to pending
+                cur.execute("""
+                    UPDATE events
+                    SET status = 'pending'
+                    WHERE id = %s
+                """, (event_id,))
+                
+                pending_count += 1
+                print(f"Set event {event_id} '{event_name}' to pending status")
+        
+        conn.commit()
+        flash(f'Event status reset completed. {pending_count} events set to pending status.', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Error resetting event status: {e}', 'error')
+    finally:
+        cur.close()
+        release_db(conn)
+    
+    return redirect(url_for('event_list'))
+
+def check_table_schema(table_name):
+    """Check and print the schema of a table"""
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        # Get table columns and their data types
+        cur.execute("""
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns
+            WHERE table_name = %s
+            ORDER BY ordinal_position
+        """, (table_name,))
+        columns = cur.fetchall()
+        
+        print(f"\nSchema for table '{table_name}':")
+        for col in columns:
+            print(f"  {col[0]}: {col[1]} (Nullable: {col[2]})")
+        
+        # Get primary key info
+        cur.execute("""
+            SELECT c.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.constraint_column_usage AS ccu USING (constraint_schema, constraint_name)
+            JOIN information_schema.columns AS c ON c.table_schema = tc.constraint_schema
+                AND tc.table_name = c.table_name AND ccu.column_name = c.column_name
+            WHERE tc.constraint_type = 'PRIMARY KEY' AND tc.table_name = %s
+        """, (table_name,))
+        pks = cur.fetchall()
+        
+        if pks:
+            print(f"  Primary key: {', '.join(pk[0] for pk in pks)}")
+        
+        # Print sample data
+        cur.execute(f"SELECT * FROM {table_name} LIMIT 5")
+        data = cur.fetchall()
+        if data:
+            print(f"  Sample data: {data}")
+        
+        return columns
+    except Exception as e:
+        print(f"Error checking schema: {e}")
+        return None
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.route('/admin/reset_accounts')
+def admin_reset_accounts():
+    """Admin route to reset admin and organizer accounts"""
+    reset_admin_organizer()
+    flash('Admin and organizer accounts have been reset with default passwords.', 'success')
+    return redirect(url_for('login'))

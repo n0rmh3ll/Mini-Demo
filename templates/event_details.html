@@ -2,8 +2,8 @@
 {% block content %}
 <style>
     :root {
-        --primary-color: #e74c3c;  /* Changed to red */
-        --primary-dark: #c0392b;   /* Darker red */
+        --primary-color: #e74c3c;
+        --primary-dark: #c0392b;
         --text-primary: #2c3e50;
         --text-secondary: #7f8c8d;
     }
@@ -24,7 +24,7 @@
     }
 
     .event-title {
-        color: var(--primary-color);  /* Changed to red */
+        color: var(--primary-color);
         font-size: 2.5rem;
         margin-bottom: 1rem;
     }
@@ -32,6 +32,7 @@
     .event-meta {
         display: flex;
         justify-content: center;
+        flex-wrap: wrap;
         gap: 2rem;
         margin-bottom: 2rem;
         color: #7f8c8d;
@@ -44,7 +45,7 @@
     }
 
     .meta-item i {
-        color: var(--primary-color);  /* Changed to red */
+        color: var(--primary-color);
     }
 
     .event-description {
@@ -56,7 +57,7 @@
     }
 
     .description-title {
-        color: var(--primary-color);  /* Changed to red */
+        color: var(--primary-color);
         font-size: 1.5rem;
         margin-bottom: 1rem;
         padding-bottom: 0.5rem;
@@ -67,6 +68,40 @@
         color: #34495e;
         line-height: 1.8;
         font-size: 1.1rem;
+        white-space: pre-line;
+    }
+
+    .event-details {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
+
+    .details-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .detail-item {
+        text-align: center;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 10px;
+    }
+
+    .detail-label {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .detail-value {
+        color: var(--text-primary);
+        font-size: 1.2rem;
+        font-weight: 500;
     }
 
     .action-buttons {
@@ -90,62 +125,24 @@
     }
 
     .register-btn {
-        background: var(--primary-color);  /* Changed to red */
+        background: var(--primary-color);
         color: white;
     }
 
     .register-btn:hover {
-        background: var(--primary-dark);  /* Changed to darker red */
+        background: var(--primary-dark);
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(231, 76, 60, 0.2);  /* Red shadow */
+        box-shadow: 0 4px 12px rgba(231, 76, 60, 0.2);
     }
 
-    .register-btn.registered {
-        background: #27ae60;  /* Keep green for registered state */
+    .registration-closed {
+        background: #95a5a6;
+        cursor: not-allowed;
     }
 
-    .back-btn {
-        background: #f5f6fa;
-        color: #2c3e50;
-    }
-
-    .back-btn:hover {
-        background: #eceef1;
-        transform: translateY(-2px);
-    }
-
-    .alert {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 1rem 2rem;
-        border-radius: 10px;
-        background: white;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        z-index: 1000;
-        animation: slideIn 0.3s ease-out;
-    }
-
-    @keyframes slideIn {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    @keyframes slideOut {
-        from {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        to {
-            transform: translateX(100%);
-            opacity: 0;
-        }
+    .btn-danger {
+        background: #e74c3c;
+        color: white;
     }
 
     /* Modal styles */
@@ -156,82 +153,30 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.5);
         z-index: 1000;
-        animation: fadeIn 0.3s ease-out;
     }
 
     .modal-content {
-        position: relative;
-        background-color: white;
-        margin: 15% auto;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
         padding: 2rem;
+        border-radius: 15px;
         width: 90%;
         max-width: 500px;
-        border-radius: 15px;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
-        animation: slideUp 0.3s ease-out;
-    }
-
-    .modal-header {
-        text-align: center;
-        margin-bottom: 1.5rem;
-    }
-
-    .modal-header h3 {
-        color: #2c3e50;
-        font-size: 1.5rem;
-        margin-bottom: 0.5rem;
-    }
-
-    .modal-buttons {
-        display: flex;
-        justify-content: center;
-        gap: 1rem;
-        margin-top: 1.5rem;
-    }
-
-    .modal-btn {
-        padding: 0.75rem 2rem;
-        border: none;
-        border-radius: 8px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .confirm-btn {
-        background: var(--primary-color);  /* Changed to red */
-        color: white;
-    }
-
-    .confirm-btn:hover {
-        background: var(--primary-dark);  /* Changed to darker red */
-        transform: translateY(-2px);
-    }
-
-    .cancel-btn {
-        background: #e74c3c;
-        color: white;
-    }
-
-    .cancel-btn:hover {
-        background: #c0392b;
-        transform: translateY(-2px);
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
+        animation: slideUp 0.3s ease;
     }
 
     @keyframes slideUp {
         from {
-            transform: translateY(50px);
+            transform: translate(-50%, calc(-50% + 50px));
             opacity: 0;
         }
         to {
-            transform: translateY(0);
+            transform: translate(-50%, -50%);
             opacity: 1;
         }
     }
@@ -246,112 +191,167 @@
                 <span>{{ event.date.strftime('%B %d, %Y') }}</span>
             </div>
             <div class="meta-item">
-                <i class="fas fa-users"></i>
-                <span>{{ participants_count }} Participants</span>
+                <i class="fas fa-user"></i>
+                <span>Organized by: {{ event.created_by }}</span>
             </div>
             <div class="meta-item">
-                <i class="fas fa-clock"></i>
-                <span>{{ event.time }}</span>
+                <i class="fas fa-envelope"></i>
+                <span>Contact: {{ event.organizer_email }}</span>
+            </div>
+            <div class="meta-item">
+                <i class="fas fa-info-circle"></i>
+                <span>Status: {{ event.status }}</span>
             </div>
         </div>
     </div>
 
     <div class="event-description">
+        <h2 class="description-title">Event Description</h2>
+        <div class="description-content">{{ event.description }}</div>
+    </div>
+
+    <div class="event-details">
         <h2 class="description-title">Event Details</h2>
-        <div class="description-content">
-            {{ event.description }}
+        <div class="details-grid">
+            <div class="detail-item">
+                <div class="detail-label">Activity Points</div>
+                <div class="detail-value">{{ event.activity_points }}</div>
+            </div>
+            {% if event.is_paid %}
+            <div class="detail-item">
+                <div class="detail-label">Registration Fee</div>
+                <div class="detail-value">${{ "%.2f"|format(event.payment_amount) }}</div>
+            </div>
+            {% else %}
+            <div class="detail-item">
+                <div class="detail-label">Registration Fee</div>
+                <div class="detail-value">Free</div>
+            </div>
+            {% endif %}
+            <div class="detail-item">
+                <div class="detail-label">Participants</div>
+                <div class="detail-value">
+                    {% if event.user_limit %}
+                        {{ event.current_participants }}/{{ event.user_limit }}
+                    {% else %}
+                        {{ event.current_participants }} (No limit)
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- Debug information - remove after testing -->
+    {% if is_admin or is_organizer %}
+    <div class="alert alert-info">
+        <p><strong>Debug Info:</strong></p>
+        <p>is_admin: {{ is_admin }}</p>
+        <p>is_organizer: {{ is_organizer }}</p>
+        <p>current_user: {{ current_user }}</p>
+        <p>event.created_by: {{ event.created_by }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Participants List - Visible only to admin and organizers -->
+    {% if is_admin or is_organizer %}
+    <div class="event-details">
+        <h2 class="description-title">Participants</h2>
+        {% if participants %}
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Registration Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for participant in participants %}
+                    <tr>
+                        <td>{{ participant.username }}</td>
+                        <td>{{ participant.email }}</td>
+                        <td>{{ participant.registration_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No participants registered yet.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <div class="action-buttons">
-        <a href="{{ url_for('event_list') }}" class="btn back-btn">
-            <i class="fas fa-arrow-left"></i> Back to Events
-        </a>
-        {% if session.get('user_id') != 'organizer' %}
+        {% if event.status == 'approved' %}
             {% if not is_registered %}
-                <button onclick="showRegistrationModal()" class="btn register-btn">
-                    <i class="fas fa-user-plus"></i> Register Now
-                </button>
+                {% if not event.user_limit or event.current_participants < event.user_limit %}
+                    <a href="#" class="btn register-btn" onclick="showRegistrationModal()">
+                        <i class="fas fa-user-plus"></i>
+                        Register Now
+                    </a>
+                {% else %}
+                    <a href="#" class="btn register-btn registration-closed">
+                        <i class="fas fa-times-circle"></i>
+                        Registration Closed (Full)
+                    </a>
+                {% endif %}
             {% else %}
-                <button class="btn register-btn registered" disabled>
-                    <i class="fas fa-check"></i> Registered
-                </button>
+                <a href="#" class="btn register-btn registration-closed">
+                    <i class="fas fa-check-circle"></i>
+                    Already Registered
+                </a>
             {% endif %}
+        {% endif %}
+        
+        {% if is_admin %}
+            <a href="{{ url_for('delete_event', event_id=event.id) }}" class="btn btn-danger">
+                <i class="fas fa-trash"></i>
+                Delete Event
+            </a>
         {% endif %}
     </div>
 </div>
 
-<!-- Registration Confirmation Modal -->
+<!-- Registration Modal -->
 <div id="registrationModal" class="modal">
     <div class="modal-content">
-        <div class="modal-header">
-            <h3>Confirm Registration</h3>
-            <p>Do you want to register for "{{ event.name }}"?</p>
-        </div>
-        <div class="modal-buttons">
-            <button onclick="confirmRegistration()" class="modal-btn confirm-btn">
-                <i class="fas fa-check"></i> Yes, Register
-            </button>
-            <button onclick="closeModal()" class="modal-btn cancel-btn">
-                <i class="fas fa-times"></i> No, Cancel
-            </button>
+        <h2>Confirm Registration</h2>
+        <p>Are you sure you want to register for this event?</p>
+        {% if event.is_paid %}
+        <p>Registration fee: ${{ "%.2f"|format(event.payment_amount) }}</p>
+        {% endif %}
+        <div class="action-buttons">
+            <button onclick="confirmRegistration()" class="btn register-btn">Confirm</button>
+            <button onclick="closeModal()" class="btn">Cancel</button>
         </div>
     </div>
 </div>
 
-{% with messages = get_flashed_messages() %}
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert" id="alert-{{ loop.index }}">{{ message }}</div>
-        {% endfor %}
-    {% endif %}
-{% endwith %}
-
 <script>
-    // Auto-dismiss alerts
-    document.addEventListener('DOMContentLoaded', function() {
-        const alerts = document.querySelectorAll('.alert');
-        alerts.forEach(alert => {
-            setTimeout(() => {
-                alert.style.animation = 'slideOut 0.3s ease-out forwards';
-                setTimeout(() => {
-                    alert.remove();
-                }, 300);
-            }, 3000);
-        });
-    });
-
-    // Modal functions
-    const modal = document.getElementById('registrationModal');
-
     function showRegistrationModal() {
-        modal.style.display = 'block';
+        document.getElementById('registrationModal').style.display = 'block';
     }
 
     function closeModal() {
-        modal.style.animation = 'fadeOut 0.3s ease-out';
-        setTimeout(() => {
-            modal.style.display = 'none';
-            modal.style.animation = '';
-        }, 300);
+        document.getElementById('registrationModal').style.display = 'none';
     }
 
     function confirmRegistration() {
-        window.location.href = "{{ url_for('register_event', event_id=event.id) }}";
+        window.location.href = '/register_event/{{ event.id }}';
     }
 
     // Close modal when clicking outside
-    window.onclick = function(event) {
-        if (event.target == modal) {
+    document.getElementById('registrationModal').onclick = function(event) {
+        if (event.target == this) {
             closeModal();
         }
-    }
+    };
 
     // Close modal on escape key
     document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape' && modal.style.display === 'block') {
+        if (event.key === 'Escape' && document.getElementById('registrationModal').style.display === 'block') {
             closeModal();
         }
     });
 </script>
-{% endblock %} 
+{% endblock %}

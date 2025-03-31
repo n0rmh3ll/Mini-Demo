@@ -166,6 +166,24 @@
         box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
     }
 
+    .delete-btn {
+        padding: 0.5rem 1rem;
+        background: #e74c3c;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+    }
+
+    .delete-btn:hover {
+        background: #c0392b;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(231, 76, 60, 0.2);
+    }
+
     /* Popup notification styles */
     .notification-popup {
         position: fixed;
@@ -246,16 +264,32 @@
 
             {% if events %}
                 {% for event in events %}
+                <!-- Only show approved events to regular users -->
+                {% if event.status == 'approved' or users[session.get('user_id')].get('is_admin') or (session.get('user_id') == 'organizer' and event.created_by == session.get('user_id')) %}
                 <div class="event-card">
                     <div class="event-info">
                         <h3>{{ event.name }}</h3>
                         <div class="event-date">{{ event.date.strftime('%B %d, %Y') }}</div>
+                        {% if event.status != 'approved' %}
+                        <div class="event-status">Status: {{ event.status }}</div>
+                        {% endif %}
                     </div>
                     {% if session.get('user_id') == 'organizer' %}
                         <div class="organizer-controls">
                             <a href="{{ url_for('event_participants_list', event_id=event.id) }}" 
                                class="view-participants-btn">
                                 <i class="fas fa-users"></i> View Participants
+                            </a>
+                        </div>
+                    {% elif users[session.get('user_id')].get('is_admin') %}
+                        <div class="organizer-controls">
+                            <a href="{{ url_for('event_details', event_id=event.id) }}" 
+                               class="view-details-btn">
+                                <i class="fas fa-info-circle"></i> View Details
+                            </a>
+                            <a href="{{ url_for('delete_event', event_id=event.id) }}" 
+                               class="delete-btn">
+                                <i class="fas fa-trash"></i> Delete
                             </a>
                         </div>
                     {% else %}
@@ -265,6 +299,7 @@
                         </a>
                     {% endif %}
                 </div>
+                {% endif %}
                 {% endfor %}
             {% else %}
                 <div class="no-events">
@@ -312,4 +347,3 @@
     });
 </script>
 {% endblock %}
-

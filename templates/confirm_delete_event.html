@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .confirm-container {
+        max-width: 500px;
+        margin: 100px auto;
+        padding: 30px;
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+    
+    .confirm-title {
+        color: #e74c3c;
+        font-size: 1.8rem;
+        margin-bottom: 20px;
+    }
+    
+    .confirm-message {
+        color: #34495e;
+        font-size: 1.1rem;
+        line-height: 1.6;
+        margin-bottom: 30px;
+    }
+    
+    .confirm-actions {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+    }
+    
+    .btn {
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+        border: none;
+    }
+    
+    .btn-danger {
+        background: #e74c3c;
+        color: white;
+    }
+    
+    .btn-cancel {
+        background: #ecf0f1;
+        color: #34495e;
+    }
+    
+    .warning-icon {
+        font-size: 3rem;
+        color: #e74c3c;
+        margin-bottom: 20px;
+    }
+</style>
+
+<div class="confirm-container">
+    <div class="warning-icon">
+        <i class="fas fa-exclamation-triangle"></i>
+    </div>
+    
+    <h2 class="confirm-title">Confirm Event Deletion</h2>
+    
+    <p class="confirm-message">
+        Are you sure you want to delete the event "{{ event_name }}"?<br>
+        This action cannot be undone. All participant registrations for this event will also be deleted.
+    </p>
+    
+    <form method="POST" action="{{ url_for('delete_event', event_id=event_id) }}">
+        <div class="confirm-actions">
+            <button type="submit" class="btn btn-danger">
+                <i class="fas fa-trash"></i> Delete Event
+            </button>
+            <a href="{{ url_for('event_list') }}" class="btn btn-cancel">
+                <i class="fas fa-times"></i> Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -409,10 +409,10 @@
                     <a href="{{ url_for('my_activities_list') }}" class="nav-link {% if request.endpoint == 'my_activities_list' %}active{% endif %}">
                         <i class="fas fa-list"></i> My Activities
                     </a>
+                    <a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}">
+                        <i class="fas fa-user"></i> Profile
+                    </a>
                 {% endif %}
-                <a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}">
-                    <i class="fas fa-user"></i> Profile
-                </a>
                 <a href="{{ url_for('logout') }}" class="logout-btn">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </a>
@@ -519,4 +519,3 @@
     </script>
 </body>
 </html>
-

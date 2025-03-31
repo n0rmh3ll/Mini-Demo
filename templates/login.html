@@ -145,5 +145,9 @@
     <div class="register-link">
         <p>Don't have an account? <a href="{{ url_for('register') }}">Create Account</a></p>
     </div>
+    <div class="login-links">
+        <a href="{{ url_for('register') }}">Create Account</a>
+        <a href="/admin/reset_accounts">Reset Admin/Organizer Accounts</a>
+    </div>
 </div>
 {% endblock %} 
